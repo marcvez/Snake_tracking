@@ -1654,7 +1654,7 @@ speed_plot(ID, repeatability, time_limit)
 # To create a summary table for all snakes
 # This table is going to be maintained for the rest of the analysis
 
-variables_track <- c("ID", "time_central_area", "time_intermediate_area", "time_refuge_area_1", "time_refuge_area_2", "time_initial_refuge", "time_distant_wall", "time_lateral_1", "time_lateral_2", "time_hidden_bf_head_out", "total_time_hidden", "time_entrance", "time_hole_1", "time_hole_2", "time_hole_3", "time_hole_4", "mean_dist_refuge", "mean_dist_closest_refuge", "beh_moving", "beh_exploring_wall", "beh_immobile_exposed", "beh_head-out", "beh_hiding-head-out", "beh_head-out_after_body_out", "avg_speed", "avg_speed_exploring", "total_dist_travelled", "dist_travelled_exploring", "dist_trav_5min_body_out", "dist_trav_10min_body_out", "dist_trav_15min_body_out")
+variables_track <- c("ID", "time_central_area", "time_intermediate_area", "time_refuge_area_1", "time_refuge_area_2", "time_initial_refuge", "time_distant_wall", "time_lateral_1", "time_lateral_2", "time_hidden_bf_head_out", "total_time_hidden", "time_entrance", "time_hole_1", "time_hole_2", "time_hole_3", "time_hole_4", "mean_dist_refuge", "mean_dist_closest_refuge", "beh_moving", "beh_exploring_wall", "beh_immobile_exposed", "beh_head-out", "beh_hiding-head-out", "beh_head-out_after_body_out", "avg_speed", "avg_speed_exploring", "total_dist_travelled", "dist_travelled_exploring", "dist_trav_5min_body_out", "dist_trav_10min_body_out", "dist_trav_15min_body_out", "dist_trav_20min_body_out", "dist_trav_25min_body_out", "dist_trav_30min_body_out")
 
 # We create the data frame that is going to store all the data
 summary_tracking <- data.frame(matrix(ncol = length(variables_track), nrow = nrow(Snake_data_tracked)))
@@ -1922,6 +1922,29 @@ generate_summary_tracking <- function(time_limit){
             # distance travelled in those 15 min
             tracking_ind$dist_trav_15min_body_out <- sum(as.numeric(coordinates_body_out$dist_traveled[1:900]))
             
+            if(nrow(coordinates_body_out) >= 1200){
+              
+              # distance travelled in those 20 min
+              tracking_ind$dist_trav_20min_body_out <- sum(as.numeric(coordinates_body_out$dist_traveled[1:1200]))
+              
+              if(nrow(coordinates_body_out) >= 1500){
+                
+                # distance travelled in those 25 min
+                tracking_ind$dist_trav_25min_body_out <- sum(as.numeric(coordinates_body_out$dist_traveled[1:1500]))
+                
+                if(nrow(coordinates_body_out) >= 1800){
+                  
+                  # distance travelled in those 25 min
+                  tracking_ind$dist_trav_30min_body_out <- sum(as.numeric(coordinates_body_out$dist_traveled[1:1800]))
+                  
+                }
+                
+                
+              }
+              
+              
+            }
+            
           }
           
         }
@@ -2018,6 +2041,12 @@ generate_summary_tracking <- function(time_limit){
       
       tracking_ind$dist_trav_15min_body_out <- 0
       
+      tracking_ind$dist_trav_20min_body_out <- 0
+      
+      tracking_ind$dist_trav_25min_body_out <- 0
+      
+      tracking_ind$dist_trav_30min_body_out <- 0
+      
       
       # Merge ind data to global database
       
@@ -2108,10 +2137,10 @@ write_xlsx(summary_tracking_complete, "C:\\Users\\marc9\\Desktop\\Marc\\CREAF\\S
 time_limit <- 3000
 
 # Which days did I test the snakes?
-plot(Snake_captures_data$Test_day)
+plot(summary_tracking_complete$Test_day)
 
 # At which hours did I test the snakes?
-plot(Snake_captures_data$`Hour test`)
+plot(summary_tracking_complete$`Hour test`)
 
 # Some plots: These should be done without repeated indivuals, only with new ones
 summary_tracking_complete_no_rep <- summary_tracking_complete[summary_tracking_complete$Repeatability == "N",]
@@ -2243,22 +2272,31 @@ ggplot(summary_tracking_complete_no_rep, aes(x = Year_invasion, y = time_hidden_
 
 
 # Distance travelled every 5 min
-summary_tracking_complete_no_rep_outside <- summary_tracking_complete_no_rep_outside %>% mutate_at(c("dist_trav_5min_body_out", "dist_trav_10min_body_out", "dist_trav_15min_body_out"), ~na_if(., 0))
+summary_tracking_complete_no_rep_outside <- summary_tracking_complete_no_rep_outside %>% mutate_at(c("dist_trav_5min_body_out", "dist_trav_10min_body_out", "dist_trav_15min_body_out", "dist_trav_20min_body_out", "dist_trav_25min_body_out", "dist_trav_30min_body_out"), ~na_if(., 0))
 
 summary_tracking_complete_no_rep_outside$diff_10_5min <- summary_tracking_complete_no_rep_outside$dist_trav_10min_body_out - summary_tracking_complete_no_rep_outside$dist_trav_5min_body_out
 
 summary_tracking_complete_no_rep_outside$diff_15_10min <- summary_tracking_complete_no_rep_outside$dist_trav_15min_body_out - summary_tracking_complete_no_rep_outside$dist_trav_10min_body_out
 
+summary_tracking_complete_no_rep_outside$diff_20_15min <- summary_tracking_complete_no_rep_outside$dist_trav_20min_body_out - summary_tracking_complete_no_rep_outside$dist_trav_15min_body_out
+
+summary_tracking_complete_no_rep_outside$diff_25_20min <- summary_tracking_complete_no_rep_outside$dist_trav_25min_body_out - summary_tracking_complete_no_rep_outside$dist_trav_20min_body_out
+
+summary_tracking_complete_no_rep_outside$diff_30_25min <- summary_tracking_complete_no_rep_outside$dist_trav_30min_body_out - summary_tracking_complete_no_rep_outside$dist_trav_25min_body_out
+
 distance_over_time <- tidyr::pivot_longer(summary_tracking_complete_no_rep_outside, 
                                        cols = starts_with("dist_trav_5min_body_out") | 
                                          starts_with("diff_10_5min") | 
-                                         starts_with("diff_15_10min"),
+                                         starts_with("diff_15_10min") | 
+                                         starts_with("diff_20_15min") | 
+                                         starts_with("diff_25_20min") | 
+                                         starts_with("diff_30_25min"),
                                        names_to = "Time_Period",
                                        values_to = "Distance")
 
 distance_over_time <- distance_over_time %>%
-  mutate(Time_Period = factor(Time_Period, levels = c("dist_trav_5min_body_out", "diff_10_5min", "diff_15_10min"),
-                              labels = c("First 5 min", "Δ 10 min and 5 min", "Δ 15 min and 10 min")))
+  mutate(Time_Period = factor(Time_Period, levels = c("dist_trav_5min_body_out", "diff_10_5min", "diff_15_10min", "diff_20_15min", "diff_25_20min", "diff_30_25min"),
+                              labels = c("First 5 min", "Δ 10 min and 5 min", "Δ 15 min and 10 min", "Δ 20 min and 15 min", "Δ 25 min and 20 min", "Δ 30 min and 25 min")))
 
 ggplot(distance_over_time, aes(x = Time_Period, y = Distance, group = Snake_ID, color = Inv_situation)) +
   theme_bw() +
@@ -2293,6 +2331,7 @@ ggplot(distance_over_time, aes(x = Time_Period, y = Distance, group = Snake_ID, 
   scale_x_discrete(drop = FALSE) +
   ylab("Distance (m)") +
   xlab("Time") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
   ggtitle("Distance traveled over time")
 
 
@@ -2300,13 +2339,16 @@ ggplot(distance_over_time, aes(x = Time_Period, y = Distance, group = Snake_ID, 
 distance_over_time_sum <- tidyr::pivot_longer(summary_tracking_complete_no_rep_outside, 
                                           cols = starts_with("dist_trav_5min_body_out") | 
                                             starts_with("dist_trav_10min_body_out") | 
-                                            starts_with("dist_trav_15min_body_out"),
+                                            starts_with("dist_trav_15min_body_out") | 
+                                            starts_with("dist_trav_20min_body_out") | 
+                                            starts_with("dist_trav_25min_body_out") | 
+                                            starts_with("dist_trav_30min_body_out"),
                                           names_to = "Time_Period",
                                           values_to = "Distance")
 
 distance_over_time_sum <- distance_over_time_sum %>%
-  mutate(Time_Period = factor(Time_Period, levels = c("dist_trav_5min_body_out", "dist_trav_10min_body_out", "dist_trav_15min_body_out"),
-                              labels = c("5 min", "10 min", "15 min")))
+  mutate(Time_Period = factor(Time_Period, levels = c("dist_trav_5min_body_out", "dist_trav_10min_body_out", "dist_trav_15min_body_out", "dist_trav_20min_body_out", "dist_trav_25min_body_out", "dist_trav_30min_body_out"),
+                              labels = c("5 min", "10 min", "15 min", "20 min", "25 min", "30 min")))
 
 
 ggplot(distance_over_time_sum, aes(x = Time_Period, y = Distance, group = Snake_ID, color = Inv_situation)) +
@@ -2707,6 +2749,7 @@ head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_o
   stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
                geom = "pointrange", color = "black", size = 0.2,
                position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
   ylab("Time (s)") + 
   ggtitle("Head-out") + 
   labs(caption = "ICC = 0.855 | p < 0.001") +
