@@ -29,6 +29,8 @@ library(EnvStats)
 library(survival)
 library(ggsurvfit)
 library(gtsummary)
+library(Hmisc)
+library(ggpubr)
 
 #####
 
@@ -58,7 +60,7 @@ summary_tracking_complete <- read_excel("summary_tracking_complete.xlsx")
 
 #####
 
-# Part 2: Data extraction for each individual snake and 3D storing
+# Part 2: Data extraction for each individual snake and 3D storing (already done)
 #####
 
 # Variable names for each column
@@ -1117,6 +1119,10 @@ load("Arena_array.Rda")
 # repeatability: If it was the first trial of the snake ("N") or it was a repeatability trial ("Y")
 # time_limit: how many seconds do we want to analyse from each snake
 
+ID <- 14739
+repeatability <- "N"
+time_limit <- 3000
+
 data_visualization <- function(ID, repeatability, time_limit){
   
   # Which snake are we going to visualize
@@ -1225,9 +1231,6 @@ data_visualization <- function(ID, repeatability, time_limit){
   
 }
 
-data_visualization(14733, "N", 3000)
-
-
 density_function <- function(ID, repeatability, time_limit){
   
   # Which snake are we going to visualize
@@ -1250,9 +1253,6 @@ density_function <- function(ID, repeatability, time_limit){
   # stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white")
   
 }
-
-density_function(12058, "N", 3000)
-
 
 graph_area <- function(ID, repeatability, time_limit){
   
@@ -1349,9 +1349,6 @@ graph_area <- function(ID, repeatability, time_limit){
   
 }
 
-graph_area(12058, "N", 3000)
-
-
 graph_hole <- function(ID, repeatability, time_limit){
   
   # Which snake are we going to visualize
@@ -1386,9 +1383,6 @@ graph_hole <- function(ID, repeatability, time_limit){
     theme_classic()
   
 }
-
-graph_hole(12058, "N", 3000)
-
 
 graph_behaviour <- function(ID, repeatability, time_limit){
   
@@ -1458,9 +1452,6 @@ graph_behaviour <- function(ID, repeatability, time_limit){
     theme_classic()
   
 }
-
-graph_behaviour(11415, "N", 3000)
-
 
 speed_plot <- function(ID, repeatability, time_limit) {
   
@@ -1642,13 +1633,22 @@ speed_plot <- function(ID, repeatability, time_limit) {
   
 }
 
-speed_plot(14733, "N", 3000)
+data_visualization(ID, repeatability, time_limit)
 
+density_function(ID, repeatability, time_limit)
+
+graph_area(ID, repeatability, time_limit)
+
+graph_hole(ID, repeatability, time_limit)
+
+graph_behaviour(ID, repeatability, time_limit)
+
+speed_plot(ID, repeatability, time_limit)
 
 #####
 
 
-# Part 4: Summarized data storing
+# Part 4: Summarized data storing (already done)
 #####
 
 # To create a summary table for all snakes
@@ -2125,7 +2125,7 @@ summary_tracking_complete_no_rep_outside <- summary_tracking_complete_no_rep[sum
 # Head-out ~ Tº
 ggplot(summary_tracking_complete_no_rep, aes(x = Temperature, y = time_hidden_bf_head_out)) +
   geom_point() + 
-  geom_smooth(method=lm, se = FALSE) + 
+  geom_smooth(method=lm, se = T) + 
   xlab("Temperature") + 
   ylab("Time (s) hidden before head-out") + 
   theme_minimal()
@@ -2133,7 +2133,7 @@ ggplot(summary_tracking_complete_no_rep, aes(x = Temperature, y = time_hidden_bf
 # Head-out ~ Tº (group)
 ggplot(summary_tracking_complete_no_rep, aes(x = Temperature, y = time_hidden_bf_head_out, color = Inv_situation)) + 
   geom_point() + 
-  geom_smooth(method=lm, se = FALSE) + 
+  geom_smooth(method=lm, se = T) + 
   xlab("Temperature") + 
   ylab("Time (s) hidden before head-out") + 
   theme_minimal()
@@ -2141,7 +2141,7 @@ ggplot(summary_tracking_complete_no_rep, aes(x = Temperature, y = time_hidden_bf
 # Head-out ~ Hour manipulation
 ggplot(summary_tracking_complete_no_rep, aes(x = `Hour manip.`, y = time_hidden_bf_head_out)) +
   geom_point() + 
-  geom_smooth(method=lm, se = FALSE) + 
+  geom_smooth(method=lm, se = T) + 
   xlab("Hour") + 
   ylab("Time (s) hidden before head-out") + 
   theme_minimal()
@@ -2240,6 +2240,111 @@ ggplot(summary_tracking_complete_no_rep, aes(x = Year_invasion, y = time_hidden_
   xlab("year of invasion") + 
   ylab("Time (s) hidden before head-out") + 
   theme_minimal()
+
+
+# Distance travelled every 5 min
+summary_tracking_complete_no_rep_outside <- summary_tracking_complete_no_rep_outside %>% mutate_at(c("dist_trav_5min_body_out", "dist_trav_10min_body_out", "dist_trav_15min_body_out"), ~na_if(., 0))
+
+summary_tracking_complete_no_rep_outside$diff_10_5min <- summary_tracking_complete_no_rep_outside$dist_trav_10min_body_out - summary_tracking_complete_no_rep_outside$dist_trav_5min_body_out
+
+summary_tracking_complete_no_rep_outside$diff_15_10min <- summary_tracking_complete_no_rep_outside$dist_trav_15min_body_out - summary_tracking_complete_no_rep_outside$dist_trav_10min_body_out
+
+distance_over_time <- tidyr::pivot_longer(summary_tracking_complete_no_rep_outside, 
+                                       cols = starts_with("dist_trav_5min_body_out") | 
+                                         starts_with("diff_10_5min") | 
+                                         starts_with("diff_15_10min"),
+                                       names_to = "Time_Period",
+                                       values_to = "Distance")
+
+distance_over_time <- distance_over_time %>%
+  mutate(Time_Period = factor(Time_Period, levels = c("dist_trav_5min_body_out", "diff_10_5min", "diff_15_10min"),
+                              labels = c("First 5 min", "Δ 10 min and 5 min", "Δ 15 min and 10 min")))
+
+ggplot(distance_over_time, aes(x = Time_Period, y = Distance, group = Snake_ID, color = Inv_situation)) +
+  theme_bw() +
+  geom_point(size = 1.5, position = position_nudge(x = 0)) +
+  geom_line(size = 0.05, linetype = "dotted") +
+  stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
+               fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, 
+               position = position_nudge(x = 0.15)) + 
+  stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
+               fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", size = 0.2,
+               position = position_nudge(x = 0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
+               fun.y = mean, geom = "line", size = 1, linetype = "solid", 
+               position = position_nudge(x = 0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
+               fun.y = mean, geom = "point", size = 3, 
+               position = position_nudge(x = 0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
+               fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, 
+               position = position_nudge(x = -0.15)) + 
+  stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
+               fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", size = 0.2,
+               position = position_nudge(x = -0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
+               fun.y = mean, geom = "line", size = 1, linetype = "solid", 
+               position = position_nudge(x = -0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
+               fun.y = mean, geom = "point", size = 3, 
+               position = position_nudge(x = -0.15)) +
+  scale_x_discrete(drop = FALSE) +
+  ylab("Distance (m)") +
+  xlab("Time") +
+  ggtitle("Distance traveled over time")
+
+
+# Cumulative distance over time 
+distance_over_time_sum <- tidyr::pivot_longer(summary_tracking_complete_no_rep_outside, 
+                                          cols = starts_with("dist_trav_5min_body_out") | 
+                                            starts_with("dist_trav_10min_body_out") | 
+                                            starts_with("dist_trav_15min_body_out"),
+                                          names_to = "Time_Period",
+                                          values_to = "Distance")
+
+distance_over_time_sum <- distance_over_time_sum %>%
+  mutate(Time_Period = factor(Time_Period, levels = c("dist_trav_5min_body_out", "dist_trav_10min_body_out", "dist_trav_15min_body_out"),
+                              labels = c("5 min", "10 min", "15 min")))
+
+
+ggplot(distance_over_time_sum, aes(x = Time_Period, y = Distance, group = Snake_ID, color = Inv_situation)) +
+  theme_bw() +
+  geom_point(size = 1.5, position = position_nudge(x = 0)) +
+  geom_line(size = 0.05, linetype = "dotted") +
+  stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
+               fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, 
+               position = position_nudge(x = -0.15)) + 
+  stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
+               fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", size = 0.2,
+               position = position_nudge(x = -0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
+               fun.y = mean, geom = "line", size = 1, linetype = "solid", 
+               position = position_nudge(x = -0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
+               fun.y = mean, geom = "point", size = 3, 
+               position = position_nudge(x = -0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
+               fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, 
+               position = position_nudge(x = 0.15)) + 
+  stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
+               fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", size = 0.2,
+               position = position_nudge(x = 0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
+               fun.y = mean, geom = "line", size = 1, linetype = "solid", 
+               position = position_nudge(x = 0.15)) +
+  stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
+               fun.y = mean, geom = "point", size = 3, 
+               position = position_nudge(x = 0.15)) +
+  scale_x_discrete(drop = FALSE) +
+  ylab("Distance (m)") +
+  xlab("Time") +
+  ggtitle("Distance traveled over time")
+
+
 
 #####
 
@@ -2349,7 +2454,7 @@ survfit2(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation,
 repeat_ID <- summary_tracking_complete[duplicated(summary_tracking_complete$ID), ][, 1]
 
 # Select ind with more than one tracking
-repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID$Snake_ID, ]
+repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID, ]
 
 # assign 1 to first trials
 repeat_ind$repeat_trial <- 1
@@ -2387,6 +2492,38 @@ for(i in 1:(nrow(repeat_ind)/2)){
   }
   
 }
+
+# Complete plot ~ invasion status
+ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_out_sec_raw, color = Inv_situation)) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = Inv_situation), geom = "line", fun.y = mean, size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+# General plot (no groups)
+ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_out_sec_raw)) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
 
 
 # interclass correlation indexes (ICC, package IRR)
@@ -2489,18 +2626,18 @@ abline(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
 # empty plot 
 plot(NULL, xlim = c(1, 2), ylim = c(0, 3000), xlab = "First trial (left)   |   Repeatibility trial (right)", ylab = "Gap time", xaxt = "n")
 
-repeat_ind$gap_time <- repeat_ind$Time_body_out_sec_raw - repeat_ind$Time_head_out_sec_raw
+repeat_ind$Visual_exp <- repeat_ind$Time_body_out_sec_raw - repeat_ind$Time_head_out_sec_raw
 
 # connect pairs of dots (same ind, first and second trial)
 for(i in 1:(nrow(repeat_ind)/2)){
   
   if(repeat_ind$Inv_situation[2*i] == "FRONT"){
     
-    lines(c(repeat_ind$repeat_trial[(2*i) - 1], repeat_ind$repeat_trial[(2*i)]), c(repeat_ind$gap_time[(2*i) - 1], repeat_ind$gap_time[(2*i)]), type = "b", col = "red")
+    lines(c(repeat_ind$repeat_trial[(2*i) - 1], repeat_ind$repeat_trial[(2*i)]), c(repeat_ind$Visual_exp[(2*i) - 1], repeat_ind$Visual_exp[(2*i)]), type = "b", col = "red")
     
   } else {
     
-    lines(c(repeat_ind$repeat_trial[(2*i) - 1], repeat_ind$repeat_trial[(2*i)]), c(repeat_ind$gap_time[(2*i) - 1], repeat_ind$gap_time[(2*i)]), type = "b", col = "blue")
+    lines(c(repeat_ind$repeat_trial[(2*i) - 1], repeat_ind$repeat_trial[(2*i)]), c(repeat_ind$Visual_exp[(2*i) - 1], repeat_ind$Visual_exp[(2*i)]), type = "b", col = "blue")
     
   }
   
@@ -2510,7 +2647,7 @@ for(i in 1:(nrow(repeat_ind)/2)){
 # interclass correlation indexes (ICC, package IRR)
 
 # We extract the variable that we want to test repeatability
-icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "gap_time", "repeat_trial")])
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Visual_exp", "repeat_trial")])
 
 # Put it in wide format
 icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
@@ -2552,6 +2689,82 @@ abline(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
 #####
 
 
+# Part 6.3.4: Joint plot
+#####
 
+head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_out_sec_raw)) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  ylab("Time (s)") + 
+  ggtitle("Head-out") + 
+  labs(caption = "ICC = 0.855 | p < 0.001") +
+  theme(plot.caption = element_text(hjust = 0.5)) +
+  coord_cartesian(ylim = c(0.5, NA))
+
+
+body_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_body_out_sec_raw)) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) + 
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("Time (s)") + 
+  ggtitle("Body-out") + 
+  labs(caption = "ICC = 0.777 | p < 0.001") +
+  theme(plot.caption = element_text(hjust = 0.5)) +
+  coord_cartesian(ylim = c(0.5, NA))
+
+repeat_ind$Visual_exp <- repeat_ind$Time_body_out_sec_raw - repeat_ind$Time_head_out_sec_raw
+
+Visual_exp_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Visual_exp)) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") +
+  ylab("Time (s)") + 
+  ggtitle("Visual exploration") + 
+  labs(caption = "ICC = 0.382 | p = 0.0497") +
+  theme(plot.caption = element_text(hjust = 0.5)) +
+  coord_cartesian(ylim = c(0.5, NA))
+
+
+ggarrange(head_out_rep, body_out_rep, Visual_exp_rep, 
+          ncol = 3, nrow = 1)
+
+
+#####
 
 
