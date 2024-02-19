@@ -31,6 +31,9 @@ library(ggsurvfit)
 library(gtsummary)
 library(Hmisc)
 library(ggpubr)
+library(vegan)
+library(sm)
+library(survminer)
 
 #####
 
@@ -2068,7 +2071,7 @@ write_xlsx(summary_tracking, "C:\\Users\\marc9\\Desktop\\Marc\\CREAF\\Snake trac
 #####
 
 
-# Part 5: Merging data frames
+# Part 5: Merging data frames (already done)
 #####
 
 time_limit <- 3000
@@ -2137,7 +2140,7 @@ write_xlsx(summary_tracking_complete, "C:\\Users\\marc9\\Desktop\\Marc\\CREAF\\S
 time_limit <- 3000
 
 # Which days did I test the snakes?
-plot(summary_tracking_complete$Test_day)
+barplot(table(as.Date(summary_tracking_complete$Test_day)))
 
 # At which hours did I test the snakes?
 plot(summary_tracking_complete$`Hour test`)
@@ -2148,7 +2151,7 @@ summary_tracking_complete_no_rep <- summary_tracking_complete[summary_tracking_c
 # Also, for some individuals, we are only going to use individuals that actually got out of the refuge (Body-out != 3000)
 summary_tracking_complete_no_rep_outside <- summary_tracking_complete_no_rep[summary_tracking_complete_no_rep$Time_body_out_sec_raw != time_limit, ]
 
-# Part 6.1: Plots
+# Part 6.1: Preliminary plots
 #####
 
 # Head-out ~ Tº
@@ -2244,8 +2247,8 @@ ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = dist
   ylab("Time (s) hidden before head-out") + 
   theme_minimal()
 
-# Time between head-out and body-out ~ depending on group
-ggplot(aes(y = (Time_body_out_sec_raw - time_hidden_bf_head_out), x = Inv_situation), data = summary_tracking_complete_no_rep) + 
+# Time between head-out and body-out ~ depending on group (only for the ones that went out of the initial refuge)
+ggplot(aes(y = (Time_body_out_sec_raw - time_hidden_bf_head_out), x = Inv_situation), data = summary_tracking_complete_no_rep_outside) + 
   geom_boxplot(aes(fill = Inv_situation)) +
   geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
   xlab("Invasion status") + 
@@ -2296,7 +2299,7 @@ distance_over_time <- tidyr::pivot_longer(summary_tracking_complete_no_rep_outsi
 
 distance_over_time <- distance_over_time %>%
   mutate(Time_Period = factor(Time_Period, levels = c("dist_trav_5min_body_out", "diff_10_5min", "diff_15_10min", "diff_20_15min", "diff_25_20min", "diff_30_25min"),
-                              labels = c("First 5 min", "Δ 10 min and 5 min", "Δ 15 min and 10 min", "Δ 20 min and 15 min", "Δ 25 min and 20 min", "Δ 30 min and 25 min")))
+                              labels = c("Δ 0-5 min", "Δ 5-10 min", "Δ 10-15 min", "Δ 15-20 min", "Δ 20-25 min", "Δ 25-30 min")))
 
 ggplot(distance_over_time, aes(x = Time_Period, y = Distance, group = Snake_ID, color = Inv_situation)) +
   theme_bw() +
@@ -2357,30 +2360,30 @@ ggplot(distance_over_time_sum, aes(x = Time_Period, y = Distance, group = Snake_
   geom_line(size = 0.05, linetype = "dotted") +
   stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
                fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, 
-               position = position_nudge(x = -0.15)) + 
+               position = position_nudge(x = 0.15)) + 
   stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
                fun.data = mean_sdl, fun.args = list(mult = 1), 
                geom = "pointrange", size = 0.2,
-               position = position_nudge(x = -0.15)) +
+               position = position_nudge(x = 0.15)) +
   stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
                fun.y = mean, geom = "line", size = 1, linetype = "solid", 
-               position = position_nudge(x = -0.15)) +
+               position = position_nudge(x = 0.15)) +
   stat_summary(data = . %>% filter(Inv_situation == "CORE"), aes(group = Inv_situation),
                fun.y = mean, geom = "point", size = 3, 
-               position = position_nudge(x = -0.15)) +
+               position = position_nudge(x = 0.15)) +
   stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
                fun.data = mean_cl_normal, geom = "errorbar", width = 0.2, 
-               position = position_nudge(x = 0.15)) + 
+               position = position_nudge(x = -0.15)) + 
   stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
                fun.data = mean_sdl, fun.args = list(mult = 1), 
                geom = "pointrange", size = 0.2,
-               position = position_nudge(x = 0.15)) +
+               position = position_nudge(x = -0.15)) +
   stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
                fun.y = mean, geom = "line", size = 1, linetype = "solid", 
-               position = position_nudge(x = 0.15)) +
+               position = position_nudge(x = -0.15)) +
   stat_summary(data = . %>% filter(Inv_situation == "FRONT"), aes(group = Inv_situation),
                fun.y = mean, geom = "point", size = 3, 
-               position = position_nudge(x = 0.15)) +
+               position = position_nudge(x = -0.15)) +
   scale_x_discrete(drop = FALSE) +
   ylab("Distance (m)") +
   xlab("Time") +
@@ -2471,6 +2474,21 @@ survfit2(Surv(Time_head_out_sec_raw, Head_out_01) ~ Inv_situation,
   add_confidence_interval() +
   add_risktable()
 
+fit_head_out <- survfit(Surv(Time_head_out_sec_raw, Head_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep)
+
+
+ggsurvplot(fit_head_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF"),
+           surv.median.line = "hv",
+           legend.labs = c("CORE", "FRONT"))
+
+
 # Body-out probability between front and core
 survfit2(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation,
          data = summary_tracking_complete_no_rep) %>% 
@@ -2481,6 +2499,52 @@ survfit2(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation,
   ) +
   add_confidence_interval() +
   add_risktable()
+
+
+fit_body_out <- survfit(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep)
+
+
+ggsurvplot(fit_body_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF"),
+           surv.median.line = "hv",
+           legend.labs = c("CORE", "FRONT"))
+
+
+
+# Smooth survival plot (general)
+sm.options(
+  list(
+    xlab = "Invasion year",
+    ylab = "Head-out")
+)
+
+sm.survival(
+  x = summary_tracking_complete_no_rep$Year_invasion,
+  y = summary_tracking_complete_no_rep$Time_head_out_sec_raw,
+  status = summary_tracking_complete_no_rep$Head_out_01,
+  h = sd(summary_tracking_complete_no_rep$Year_invasion) / nrow(summary_tracking_complete_no_rep)^(-1/4)
+)
+
+sm.options(
+  list(
+    xlab = "Invasion year",
+    ylab = "Body-out")
+)
+
+sm.survival(
+  x = summary_tracking_complete_no_rep$Year_invasion,
+  y = summary_tracking_complete_no_rep$Time_body_out_sec_raw,
+  status = summary_tracking_complete_no_rep$Body_out_01,
+  h = sd(summary_tracking_complete_no_rep$Year_invasion) / nrow(summary_tracking_complete_no_rep)^(-1/4)
+)
+
+
 
 #####
 
@@ -2493,10 +2557,12 @@ survfit2(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation,
 # Repeatability
 
 # Select rows with duplicated ID (repeatability)
-repeat_ID <- summary_tracking_complete[duplicated(summary_tracking_complete$ID), ][, 1]
+
+repeat_ID <- summary_tracking_complete[duplicated(summary_tracking_complete$ID), "ID"]
 
 # Select ind with more than one tracking
-repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID, ]
+repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID$ID, ]
+
 
 # assign 1 to first trials
 repeat_ind$repeat_trial <- 1
@@ -2811,3 +2877,292 @@ ggarrange(head_out_rep, body_out_rep, Visual_exp_rep,
 #####
 
 
+# Part 6.4: Behaviour and area use
+#####
+
+# Behaviour
+# Select columns of interest for stacked behaviour plot
+stacked_behaviour <- summary_tracking_complete_no_rep[, c("Snake_ID", "time_hidden_bf_head_out", "total_time_hidden", "beh_moving", "beh_exploring_wall", "beh_immobile_exposed", "beh_head-out", "beh_hiding-head-out")]
+
+# New variable: hidden time after first head-out
+stacked_behaviour$`beh_hidden_after_first_head-out` <- stacked_behaviour$total_time_hidden - stacked_behaviour$time_hidden_bf_head_out
+
+# We delete this intermediate variable used to calculate previous variable
+stacked_behaviour <- subset(stacked_behaviour, select = -total_time_hidden)
+
+# Change column names
+colnames(stacked_behaviour) <- c("Snake_ID", "Hidden before head-out", "Exploring", "Exploring wall", "Immobile exposed", "Head-out", "Hidden in corner", "Hidden after first head-out")
+
+# Snake_ID ordered by year of invasion
+snakes_order_by_year <- summary_tracking_complete_no_rep[, c("Snake_ID", "Year_invasion")]
+
+snakes_order_by_year <- snakes_order_by_year[order(snakes_order_by_year$Year_invasion, decreasing = FALSE), ]
+
+# Long format
+stacked_behaviour_long <- pivot_longer(stacked_behaviour, cols = c("Hidden before head-out", "Exploring", "Exploring wall", "Immobile exposed", "Head-out", "Hidden in corner", "Hidden after first head-out"), names_to = "Behaviour", values_to = "Percentage")
+
+# Percentage of each behaviour
+stacked_behaviour_long <- stacked_behaviour_long %>%
+  group_by(Snake_ID) %>%
+  mutate(Percentage_total = sum(Percentage)) %>%
+  ungroup() %>%
+  mutate(Percentage = Percentage / Percentage_total * 100)
+
+# Order Snake ID by year of invasion
+stacked_behaviour_long$Snake_ID <- factor(stacked_behaviour_long$Snake_ID, levels = snakes_order_by_year$Snake_ID)
+
+# Order behaviour variables
+stacked_behaviour_long$Behaviour <- factor(stacked_behaviour_long$Behaviour, levels = c("Immobile exposed", "Exploring wall", "Exploring", "Head-out", "Hidden in corner", "Hidden after first head-out", "Hidden before head-out"))
+
+# Colors for behaviours
+beh_colors <- c(viridis(7)[7], viridis(7)[6], viridis(7)[5], viridis(7)[4], viridis(7)[3], viridis(7)[2], viridis(7)[1])
+
+# Plot
+ggplot(stacked_behaviour_long, aes(x = Snake_ID, y = Percentage, fill = Behaviour)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(x = "Snake ID", y = "% behaviours during 50 min test", fill = "Behaviours") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10), 
+        legend.text = element_text(size = 10), 
+        axis.title.x = element_text(size = 15),  
+        axis.title.y = element_text(size = 15),
+        axis.text.y = element_text(size = 10), 
+        legend.title = element_text(size = 15)) +
+  scale_fill_manual(values = beh_colors)
+
+
+# Area
+#Select columns
+stacked_area <- summary_tracking_complete_no_rep[, c("Snake_ID", "time_central_area", "time_intermediate_area", "time_refuge_area_1", "time_refuge_area_2", "time_initial_refuge", "time_distant_wall", "time_lateral_1", "time_lateral_2", "time_hidden_bf_head_out", "total_time_hidden")]
+
+# New variables
+stacked_area$refuge_area <- stacked_area$time_refuge_area_1 + stacked_area$time_refuge_area_2
+
+stacked_area$over_lateral <- stacked_area$time_lateral_1 + stacked_area$time_lateral_2
+
+stacked_area$`beh_hidden_after_first_head-out` <- stacked_area$total_time_hidden - stacked_area$time_hidden_bf_head_out
+
+# We delete theese intermediate variables used to calculate previous variables
+stacked_area <- subset(stacked_area, select = -c(total_time_hidden, time_refuge_area_1, time_refuge_area_2, time_lateral_1, time_lateral_2))
+
+# Change column names
+colnames(stacked_area) <- c("Snake_ID", "Central area", "Intermediate area", "Initial refuge", "Distant wall", "Hidden before head-out", "Refuge area", "Over lateral refuge", "Head-out after head-out")
+
+# Long format
+stacked_area_long <- pivot_longer(stacked_area, cols = c("Central area", "Intermediate area", "Initial refuge", "Distant wall", "Hidden before head-out", "Refuge area", "Over lateral refuge", "Head-out after head-out"), names_to = "Area", values_to = "Percentage")
+
+# Percentage of each behaviour
+stacked_area_long <- stacked_area_long %>%
+  group_by(Snake_ID) %>%
+  mutate(Percentage_total = sum(Percentage)) %>%
+  ungroup() %>%
+  mutate(Percentage = Percentage / Percentage_total * 100)
+
+# Order Snake ID by year of invasion
+stacked_area_long$Snake_ID <- factor(stacked_area_long$Snake_ID, levels = snakes_order_by_year$Snake_ID)
+
+# Order behaviour variables
+stacked_area_long$Area <- factor(stacked_area_long$Area, levels = c("Central area", "Intermediate area", "Initial refuge", "Distant wall", "Refuge area", "Over lateral refuge", "Head-out after head-out", "Hidden before head-out"))
+
+
+# Colors for behaviours
+area_colors <- c(viridis(8)[8], viridis(8)[7], viridis(8)[6], viridis(8)[5], viridis(8)[4], viridis(8)[3], viridis(8)[2], viridis(8)[1])
+
+# Plot
+ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(x = "Snake ID", y = "% area during 50 min test", fill = "Area") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10), 
+        legend.text = element_text(size = 10), 
+        axis.title.x = element_text(size = 15),  
+        axis.title.y = element_text(size = 15),
+        axis.text.y = element_text(size = 10), 
+        legend.title = element_text(size = 15)) +
+  scale_fill_manual(values = area_colors)
+
+# SIMPER analysis?
+
+
+#####
+
+
+
+
+
+# Part 7: Plots by invasion category
+#####
+
+# Head-out
+ggsurvplot(fit_head_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF"),
+           surv.median.line = "hv",
+           legend.labs = c("CORE", "FRONT"))
+
+
+ggplot(aes(y = time_hidden_bf_head_out, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) +
+  geom_boxplot(aes(fill = Inv_situation)) + 
+  geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
+  xlab("Invasion status") + 
+  ylab("Time (s) hidden before head-out") + 
+  stat_summary(fun=mean, geom="point", shape=21, size=4, color="black", fill="white") +
+  theme_minimal() + 
+  stat_n_text(y.pos = NULL, color = "black", text.box = TRUE)
+
+
+# Body-out
+ggsurvplot(fit_body_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF"),
+           surv.median.line = "hv",
+           legend.labs = c("CORE", "FRONT"))
+
+
+ggplot(aes(y = Time_body_out_sec_raw , x = Inv_situation), data = summary_tracking_complete_no_rep_outside) +
+  geom_boxplot(aes(fill = Inv_situation)) + 
+  geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
+  xlab("Invasion status") + 
+  ylab("Time (s) hidden before body-out") + 
+  stat_summary(fun=mean, geom="point", shape=21, size=4, color="black", fill="white") +
+  theme_minimal() + 
+  stat_n_text(y.pos = NULL, color = "black", text.box = TRUE)
+
+
+
+# Visual exploration
+ggplot(aes(y = Time_body_out_sec_raw - Time_head_out_sec_raw , x = Inv_situation), data = summary_tracking_complete_no_rep_outside) +
+  geom_boxplot(aes(fill = Inv_situation)) + 
+  geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
+  xlab("Invasion status") + 
+  ylab("Time (s) doing visual exploration") + 
+  stat_summary(fun=mean, geom="point", shape=21, size=4, color="black", fill="white") +
+  theme_minimal() + 
+  stat_n_text(y.pos = NULL, color = "black", text.box = TRUE)
+
+# Distance explored
+ggplot(aes(y = dist_travelled_exploring, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) + 
+  geom_boxplot(aes(fill = Inv_situation)) +
+  geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
+  xlab("Invasion status") + 
+  ylab("Distanced explored (m)") + 
+  stat_summary(fun=mean, geom="point", shape=21, size=4, color="black", fill="white") + 
+  theme_minimal() + 
+  stat_n_text(y.pos = NULL, color = "black", text.box = TRUE)
+
+
+# Head-out after body out
+ggplot(aes(y = `beh_head-out_after_body_out`, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) + 
+  geom_boxplot(aes(fill = Inv_situation)) +
+  geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
+  xlab("Invasion status") + 
+  ylab("Head-out (s) after first emergence") + 
+  stat_summary(fun=mean, geom="point", shape=21, size=4, color="black", fill="white") + 
+  theme_minimal() + 
+  stat_n_text(y.pos = NULL, color = "black", text.box = TRUE)
+
+
+# Time hidden after first head-out
+ggplot(aes(y = total_time_hidden - time_hidden_bf_head_out, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) + 
+  geom_boxplot(aes(fill = Inv_situation)) +
+  geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
+  xlab("Invasion status") + 
+  ylab("Head-out (s) after first emergence") + 
+  stat_summary(fun=mean, geom="point", shape=21, size=4, color="black", fill="white") + 
+  theme_minimal() + 
+  stat_n_text(y.pos = NULL, color = "black", text.box = TRUE)
+
+# Time in central area
+ggplot(aes(y = time_central_area + time_intermediate_area, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) + 
+  geom_boxplot(aes(fill = Inv_situation)) +
+  geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
+  xlab("Invasion status") + 
+  ylab("Central area (s)") + 
+  stat_summary(fun=mean, geom="point", shape=21, size=4, color="black", fill="white") + 
+  theme_minimal() + 
+  stat_n_text(y.pos = NULL, color = "black", text.box = TRUE)
+
+# Time exploring
+ggplot(aes(y = beh_moving, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) + 
+  geom_boxplot(aes(fill = Inv_situation)) +
+  geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
+  xlab("Invasion status") + 
+  ylab("Exploring (s)") + 
+  stat_summary(fun=mean, geom="point", shape=21, size=4, color="black", fill="white") + 
+  theme_minimal() + 
+  stat_n_text(y.pos = NULL, color = "black", text.box = TRUE)
+
+#####
+
+
+# Part 8: Linear plots 
+#####
+
+# Head-out
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = time_hidden_bf_head_out)) +
+  geom_point() + 
+  geom_smooth(method=lm) + 
+  xlab("Year of invasion") + 
+  ylab("Time (s) hidden before head-out") + 
+  theme_minimal()
+
+# Body-out
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = Time_body_out_sec_raw)) +
+  geom_point() + 
+  geom_smooth(method=lm) + 
+  xlab("Year of invasion") + 
+  ylab("Time (s) hidden before body-out") + 
+  theme_minimal()
+
+# Visual exploration
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = Time_body_out_sec_raw - Time_head_out_sec_raw)) +
+  geom_point() + 
+  geom_smooth(method=lm) + 
+  xlab("Year of invasion") + 
+  ylab("Visual explortion") + 
+  theme_minimal()
+
+# Distance explored
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = dist_travelled_exploring)) +
+  geom_point() + 
+  geom_smooth(method=lm) + 
+  xlab("Year of invasion") + 
+  ylab("Distance explored") + 
+  theme_minimal()
+
+# Exploring
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = beh_moving)) +
+  geom_point() + 
+  geom_smooth(method=lm) + 
+  xlab("Year of invasion") + 
+  ylab("Behaviour moving") + 
+  theme_minimal()
+
+# Immobile exposed
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = beh_immobile_exposed)) +
+  geom_point() + 
+  geom_smooth(method=lm) + 
+  xlab("Year of invasion") + 
+  ylab("Behaviour exposed") + 
+  theme_minimal()
+
+# Head-out after head-out
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = `beh_head-out_after_body_out`)) +
+  geom_point() + 
+  geom_smooth(method=lm) + 
+  xlab("Year of invasion") + 
+  ylab("Head-out after body out") + 
+  theme_minimal()
+
+
+
+
+#####
