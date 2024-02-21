@@ -2986,8 +2986,6 @@ ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
 
 
 
-
-
 # Part 7: Plots by invasion category
 #####
 
