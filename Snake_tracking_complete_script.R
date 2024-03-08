@@ -34,6 +34,8 @@ library(ggpubr)
 library(vegan)
 library(sm)
 library(survminer)
+library(ggfortify)
+library(factoextra)
 
 #####
 
@@ -2897,6 +2899,13 @@ stacked_behaviour <- subset(stacked_behaviour, select = -total_time_hidden)
 # Change column names
 colnames(stacked_behaviour) <- c("Snake_ID", "Hidden before head-out", "Exploring", "Exploring wall", "Immobile exposed", "Head-out", "Hidden in corner", "Hidden after first head-out")
 
+# Alternative data frame with invasion situation
+stacked_behaviour_treatment <- stacked_behaviour
+
+stacked_behaviour_treatment$treatment <- summary_tracking_complete_no_rep$Inv_situation
+
+stacked_behaviour_treatment$year <- summary_tracking_complete_no_rep$Year_invasion
+
 # Snake_ID ordered by year of invasion
 snakes_order_by_year <- summary_tracking_complete_no_rep[, c("Snake_ID", "Year_invasion")]
 
@@ -2951,6 +2960,13 @@ stacked_area <- subset(stacked_area, select = -c(total_time_hidden, time_refuge_
 # Change column names
 colnames(stacked_area) <- c("Snake_ID", "Central area", "Intermediate area", "Initial refuge", "Distant wall", "Hidden before head-out", "Refuge area", "Over lateral refuge", "Head-out after head-out")
 
+# Alternative data frame with invasion situation
+stacked_area_treatment <- stacked_area
+
+stacked_area_treatment$treatment <- summary_tracking_complete_no_rep$Inv_situation
+
+stacked_area_treatment$year <- summary_tracking_complete_no_rep$Year_invasion
+
 # Long format
 stacked_area_long <- pivot_longer(stacked_area, cols = c("Central area", "Intermediate area", "Initial refuge", "Distant wall", "Hidden before head-out", "Refuge area", "Over lateral refuge", "Head-out after head-out"), names_to = "Area", values_to = "Percentage")
 
@@ -2983,10 +2999,119 @@ ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
         legend.title = element_text(size = 15)) +
   scale_fill_manual(values = area_colors)
 
-# SIMPER analysis?
+
+# Spatial analysis + PERMANOVA / SIMPER (ANOVA?)
+
+# Behaviour
+# Delete Snake ID column
+stacked_behaviour_treatment <- subset(stacked_behaviour_treatment, select = -c(Snake_ID))
+
+# Subset pca columns (numeric)
+stacked_behaviour_treatment_var <- stacked_behaviour_treatment[1:7]
+
+# PCA
+pca_beh <- prcomp(stacked_behaviour_treatment_var, scale. = T)
+
+# Weights PCA axis
+pca_beh$rotation
+
+# Coordinates
+pca_beh$x
+
+# Summary
+summary(pca_beh)
+
+# Plot 1
+autoplot(pca_beh, data = stacked_behaviour_treatment, colour = 'treatment',
+         loadings = TRUE, loadings.colour = 'blue',
+         loadings.label = TRUE, loadings.label.size = 3)
+
+# Plot 2
+fviz_pca_biplot(pca_beh, geom.ind = "point", 
+             habillage = stacked_behaviour_treatment$treatment, 
+             axes = c(1, 2), 
+             pointsize = 3,
+             addEllipses = TRUE, ellipse.level = 0.9) 
 
 
-#####
+# Area
+
+# Delete Snake ID column
+stacked_area_treatment <- subset(stacked_area_treatment, select = -c(Snake_ID))
+
+# Subset pca columns (numeric)
+stacked_area_treatment_var <- stacked_area_treatment[, c("Central area", "Intermediate area", "Initial refuge", "Distant wall", "Refuge area", "Over lateral refuge")]
+
+# PCA
+pca_area <- prcomp(stacked_area_treatment_var, scale. = T)
+
+# Weights PCA axis
+pca_area$rotation
+
+# Coordinates
+pca_area$x
+
+# Summary
+summary(pca_area)
+
+# Plot 1
+autoplot(pca_area, data = stacked_area_treatment, colour = 'treatment',
+         loadings = TRUE, loadings.colour = 'blue',
+         loadings.label = TRUE, loadings.label.size = 3)
+
+# Plot 2
+fviz_pca_biplot(pca_area, geom.ind = "point", 
+                habillage = stacked_area_treatment$treatment, 
+                axes = c(1, 2), 
+                pointsize = 3,
+                addEllipses = TRUE, ellipse.level = 0.9) 
+
+
+# PERMANOVA
+stacked_area_treatment_env <- stacked_area_treatment[, c("treatment", "year")]
+
+stacked_behaviour_treatment_env <- stacked_behaviour_treatment[, c("treatment", "year")]
+
+# PERMANOVA behaviour
+beh.permanova <- adonis2(stacked_behaviour_treatment_var ~ treatment + year, data = stacked_behaviour_treatment_env, permutations = 999, method="euclidean")
+
+beh.permanova
+
+# PERMANOVA area
+beh.area <- adonis2(stacked_area_treatment_var ~ treatment + year, data = stacked_area_treatment_env, permutations = 999, method="euclidean")
+
+beh.area
+
+
+# Alternative method behaviour
+beh.dist <- vegdist(stacked_behaviour_treatment_var, method="euclidean")
+
+beh.dist <- vegdist(decostand(stacked_behaviour_treatment_var, "norm"), method="euclidean")
+
+
+beh.dispersion <- betadisper(beh.dist, group = stacked_behaviour_treatment_env$treatment)
+
+permutest(beh.dispersion)
+
+plot(beh.dispersion, hull = FALSE, ellipse = TRUE) 
+
+
+
+# Alternative method area
+area.dist <- vegdist(stacked_area_treatment_var, method="euclidean")
+
+area.dist <- vegdist(decostand(stacked_area_treatment_var, "norm"), method="euclidean")
+
+area.dispersion <- betadisper(area.dist, group = stacked_area_treatment_env$treatment)
+
+permutest(area.dispersion)
+
+plot(area.dispersion, hull = FALSE, ellipse = TRUE) 
+
+
+
+
+ #####
 
 
 
@@ -3006,7 +3131,17 @@ ggsurvplot(fit_head_out,
            legend.labs = c("CORE", "FRONT"))
 
 
-ggplot(aes(y = time_hidden_bf_head_out, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) +
+# Alternative method area
+area.dist <- vegdist(stacked_area_treatment_var, method="euclidean")
+
+beh.dist <- vegdist(decostand(stacked_area_treatment_var, "norm"), method="euclidean")
+
+
+beh.dispersion <- betadisper(beh.dist, group = stacked_area_treatment_env$treatment)
+
+permutest(beh.dispersion)
+
+plot(beh.dispersion, hull = FALSE, ellipse = TRUE) ggplot(aes(y = time_hidden_bf_head_out, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) +
   geom_boxplot(aes(fill = Inv_situation)) + 
   geom_jitter(width = 0.2, height = 0, size = 3, alpha = 0.8) + 
   xlab("Invasion status") + 
