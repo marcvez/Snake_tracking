@@ -36,6 +36,7 @@ library(sm)
 library(survminer)
 library(ggfortify)
 library(factoextra)
+library(graphics)
 
 #####
 
@@ -50,6 +51,10 @@ Snake_data <- read_excel("Snake_captures.xlsx")
 
 # Subset tracked snakes
 Snake_data_tracked <- Snake_data[Snake_data$Tracking %in% c("Y"), ]
+
+# Subset tracked + genetics/isotopes + x-ray sample 
+Snake_data_tracked <- Snake_data_tracked[!is.na(Snake_data_tracked$SVL), ]
+
 
 # Load snake 3D array
 load("Snake_array.Rda")
@@ -2079,7 +2084,7 @@ write_xlsx(summary_tracking, "C:\\Users\\marc9\\Desktop\\Marc\\CREAF\\Snake trac
 time_limit <- 3000
 
 # Select columns of interest
-Snake_data_tracked_final <- Snake_data_tracked[, c("Snake_ID", "Trap_ID", "Locality", "X", "Y", "Inv_situation", "Capture_day", "Test_day", "Acc_time", "Hour manip.", "Hour accl.", "Hour test", "Time_head_out_sec_raw", "Time_body_out_sec_raw", "Temperature", "R_H", "Weather", "Arena", "Official", "Repeatability", "Tracking", "Year_invasion", "Distance_Noahs", "SVL", "Weight", "Sex", "Hard_Drive")]
+Snake_data_tracked_final <- Snake_data_tracked[, c("Snake_ID", "Trap_ID", "Locality", "X", "Y", "Inv_situation", "Capture_day", "Test_day", "Acc_time", "Hour manip.", "Hour accl.", "Hour test", "Time_head_out_sec_raw", "Time_body_out_sec_raw", "Temperature", "R_H", "Weather", "Arena", "Official", "Repeatability", "Tracking", "Year_invasion", "Distance_Noahs", "SVL", "Real_Weight", "Condition", "Sex", "N_eggs", "Hard_Drive")]
 
 # Transform variable into numeric
 Snake_data_tracked_final$Time_head_out_sec_raw <- as.numeric(Snake_data_tracked_final$Time_head_out_sec_raw)
@@ -2149,11 +2154,14 @@ barplot(table(as.Date(summary_tracking_complete$Test_day)))
 # At which hours did I test the snakes?
 plot(summary_tracking_complete$`Hour test`)
 
-# Some plots: These should be done without repeated indivuals, only with new ones
+# Some plots: These should be done without repeated indiviuals, only with new ones
 summary_tracking_complete_no_rep <- summary_tracking_complete[summary_tracking_complete$Repeatability == "N",]
 
 # Also, for some individuals, we are only going to use individuals that actually got out of the refuge (Body-out != 3000)
 summary_tracking_complete_no_rep_outside <- summary_tracking_complete_no_rep[summary_tracking_complete_no_rep$Time_body_out_sec_raw != time_limit, ]
+
+# Create one without gravid individuals?
+summary_tracking_complete_no_rep_outside_noeggs <- summary_tracking_complete_no_rep_outside[summary_tracking_complete_no_rep_outside$N_eggs == 0, ]
 
 # Part 6.1: Preliminary plots
 #####
@@ -2250,6 +2258,8 @@ ggplot(summary_tracking_complete_no_rep_outside, aes(x = Year_invasion, y = dist
   xlab("Temperature") + 
   ylab("Time (s) hidden before head-out") + 
   theme_minimal()
+
+cor.test(summary_tracking_complete_no_rep_outside$total_dist_travelled, summary_tracking_complete_no_rep_outside$Year_invasion)
 
 # Time between head-out and body-out ~ depending on group (only for the ones that went out of the initial refuge)
 ggplot(aes(y = Visual_exp, x = Inv_situation), data = summary_tracking_complete_no_rep_outside) + 
@@ -2395,6 +2405,320 @@ ggplot(distance_over_time_sum, aes(x = Time_Period, y = Distance, group = Snake_
   xlab("Time") +
   ggtitle("Distance traveled over time")
 
+
+##### 
+
+# 6.1.1: Residual extraction
+#####
+
+residual_extraction_no_rep_outside <- function(){
+  
+  ## Condition
+  
+  # Head-out
+  
+  lm_head_out_cond <- lm(log1p(Time_head_out_sec_raw) ~ (Condition), data = summary_tracking_complete_no_rep_outside)
+  
+  summary_tracking_complete_no_rep_outside$res_head_cond <- lm_head_out_cond$residuals
+  
+  # by sex
+  
+  lm_head_out_cond_sex <- lm(log1p(Time_head_out_sec_raw) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep_outside)
+  
+  summary_tracking_complete_no_rep_outside$res_head_cond_sex <- lm_head_out_cond_sex$residuals
+  
+  
+  # Body-out
+  
+  lm_body_out_cond <- lm(log1p(Time_body_out_sec_raw) ~ (Condition), data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_body_cond <- lm_body_out_cond$residuals
+  
+  # by sex
+  
+  lm_body_out_cond_sex <- lm(log1p(Time_body_out_sec_raw) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep_outside)
+  
+  summary_tracking_complete_no_rep_outside$res_body_cond_sex <- lm_body_out_cond_sex$residuals
+  
+  
+  # Visual exploration
+  
+  lm_visual_exp_cond <- lm(log1p(Visual_exp) ~ (Condition), data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_visual_cond <- lm_visual_exp_cond$residuals
+  
+  # lm by sex
+  lm_visual_cond_sex <- lm(log1p(Visual_exp) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_visual_cond_sex <- lm_visual_cond_sex$residuals
+  
+  
+  ## SVL
+  
+  # lm
+  lm_head_out_svl <- lm(log1p(Time_head_out_sec_raw) ~ log1p(SVL), data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_head_svl <- lm_head_out_svl$residuals
+  
+  # lm by sex
+  lm_head_svl_sex <- lm(log1p(Time_head_out_sec_raw) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_head_svl_sex <- lm_head_svl_sex$residuals
+  
+  
+  # Body-out
+  
+  # lm
+  lm_body_out_svl <- lm(log1p(Time_body_out_sec_raw) ~ log1p(SVL), data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_body_svl <- lm_body_out_svl$residuals
+  
+  # lm by sex
+  lm_body_svl_sex <- lm(log1p(Time_body_out_sec_raw) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_body_svl_sex <- lm_body_svl_sex$residuals
+
+  
+  
+  # Visual exploration
+  
+  lm_visual_exp_svl <- lm(log1p(Visual_exp) ~ log1p(SVL), data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_visual_svl <- lm_visual_exp_svl$residual
+  
+  # lm by sex
+  lm_visual_svl_sex <- lm(log1p(Visual_exp) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep_outside)
+
+  summary_tracking_complete_no_rep_outside$res_visual_svl_sex <- lm_visual_svl_sex$residuals
+  
+  assign("summary_tracking_complete_no_rep_outside", summary_tracking_complete_no_rep_outside, envir=globalenv())
+
+  
+}
+
+residual_extraction_no_rep_outside()
+
+residual_extraction_no_rep <- function(){
+  
+  ## Condition
+  
+  # Head-out
+  
+  lm_head_out_cond <- lm(log1p(Time_head_out_sec_raw) ~ (Condition), data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_head_cond <- lm_head_out_cond$residuals
+  
+  # by sex
+  
+  lm_head_out_cond_sex <- lm(log1p(Time_head_out_sec_raw) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_head_cond_sex <- lm_head_out_cond_sex$residuals
+  
+  
+  # Body-out
+  
+  lm_body_out_cond <- lm(log1p(Time_body_out_sec_raw) ~ (Condition), data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_body_cond <- lm_body_out_cond$residuals
+  
+  # by sex
+  
+  lm_body_out_cond_sex <- lm(log1p(Time_body_out_sec_raw) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_body_cond_sex <- lm_body_out_cond_sex$residuals
+  
+  
+  # Visual exploration
+  
+  lm_visual_exp_cond <- lm(log1p(Visual_exp) ~ (Condition), data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_visual_cond <- lm_visual_exp_cond$residuals
+  
+  # lm by sex
+  lm_visual_cond_sex <- lm(log1p(Visual_exp) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_visual_cond_sex <- lm_visual_cond_sex$residuals
+  
+  
+  ## SVL
+  
+  # lm
+  lm_head_out_svl <- lm(log1p(Time_head_out_sec_raw) ~ log1p(SVL), data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_head_svl <- lm_head_out_svl$residuals
+  
+  # lm by sex
+  lm_head_svl_sex <- lm(log1p(Time_head_out_sec_raw) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_head_svl_sex <- lm_head_svl_sex$residuals
+  
+  
+  # Body-out
+  
+  # lm
+  lm_body_out_svl <- lm(log1p(Time_body_out_sec_raw) ~ log1p(SVL), data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_body_svl <- lm_body_out_svl$residuals
+  
+  # lm by sex
+  lm_body_svl_sex <- lm(log1p(Time_body_out_sec_raw) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_body_svl_sex <- lm_body_svl_sex$residuals
+  
+  
+  
+  # Visual exploration
+  
+  lm_visual_exp_svl <- lm(log1p(Visual_exp) ~ log1p(SVL), data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_visual_svl <- lm_visual_exp_svl$residual
+  
+  # lm by sex
+  lm_visual_svl_sex <- lm(log1p(Visual_exp) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep)
+  
+  summary_tracking_complete_no_rep$res_visual_svl_sex <- lm_visual_svl_sex$residuals
+  
+  assign("summary_tracking_complete_no_rep", summary_tracking_complete_no_rep, envir=globalenv())
+  
+  
+}
+
+residual_extraction_no_rep()
+
+residual_extraction_no_rep_outside_noeggs <- function(){
+  
+  ## Condition
+  
+  # Head-out
+  
+  lm_head_out_cond <- lm(log1p(Time_head_out_sec_raw) ~ (Condition), data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_head_cond <- lm_head_out_cond$residuals
+  
+  # by sex
+  
+  lm_head_out_cond_sex <- lm(log1p(Time_head_out_sec_raw) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_head_cond_sex <- lm_head_out_cond_sex$residuals
+  
+  
+  # Body-out
+  
+  lm_body_out_cond <- lm(log1p(Time_body_out_sec_raw) ~ (Condition), data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_body_cond <- lm_body_out_cond$residuals
+  
+  # by sex
+  
+  lm_body_out_cond_sex <- lm(log1p(Time_body_out_sec_raw) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_body_cond_sex <- lm_body_out_cond_sex$residuals
+  
+  
+  # Visual exploration
+  
+  lm_visual_exp_cond <- lm(log1p(Visual_exp) ~ (Condition), data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_visual_cond <- lm_visual_exp_cond$residuals
+  
+  # lm by sex
+  lm_visual_cond_sex <- lm(log1p(Visual_exp) ~ (Condition) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_visual_cond_sex <- lm_visual_cond_sex$residuals
+  
+  
+  ## SVL
+  
+  # lm
+  lm_head_out_svl <- lm(log1p(Time_head_out_sec_raw) ~ log1p(SVL), data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_head_svl <- lm_head_out_svl$residuals
+  
+  # lm by sex
+  lm_head_svl_sex <- lm(log1p(Time_head_out_sec_raw) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_head_svl_sex <- lm_head_svl_sex$residuals
+  
+  
+  # Body-out
+  
+  # lm
+  lm_body_out_svl <- lm(log1p(Time_body_out_sec_raw) ~ log1p(SVL), data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_body_svl <- lm_body_out_svl$residuals
+  
+  # lm by sex
+  lm_body_svl_sex <- lm(log1p(Time_body_out_sec_raw) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_body_svl_sex <- lm_body_svl_sex$residuals
+  
+  
+  
+  # Visual exploration
+  
+  lm_visual_exp_svl <- lm(log1p(Visual_exp) ~ log1p(SVL), data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_visual_svl <- lm_visual_exp_svl$residual
+  
+  # lm by sex
+  lm_visual_svl_sex <- lm(log1p(Visual_exp) ~ log1p(SVL) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs)
+  
+  summary_tracking_complete_no_rep_outside_noeggs$res_visual_svl_sex <- lm_visual_svl_sex$residuals
+  
+  assign("summary_tracking_complete_no_rep_outside_noeggs", summary_tracking_complete_no_rep_outside_noeggs, envir=globalenv())
+  
+  
+}
+
+residual_extraction_no_rep_outside_noeggs()
+
+# binary sex
+
+for(i in 1:nrow(summary_tracking_complete_no_rep_outside)){
+  
+  if(summary_tracking_complete_no_rep_outside$Sex[i] == "F"){
+    
+    summary_tracking_complete_no_rep_outside$Sex_12[i] <- 1
+    
+  } else if(summary_tracking_complete_no_rep_outside$Sex[i] == "M"){
+    
+    summary_tracking_complete_no_rep_outside$Sex_12[i] <- 2
+    
+  } else {
+    
+    summary_tracking_complete_no_rep_outside$Sex_12[i] <- 3
+    
+  }
+  
+}
+
+
+# plots, together and by sex
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = (Condition), y = log1p(Time_head_out_sec_raw))) +
+  geom_point() +
+  stat_smooth(method = "lm") + 
+  theme_minimal()
+
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = (Condition), y = log1p(Time_head_out_sec_raw), color = Sex)) +
+  geom_point() +
+  stat_smooth(method = "lm") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_outside, aes(x = Distance_Noahs, y = res_visual_svl_sex, col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Distance to Noah's Garden") + 
+  ylab("Body-out residuals") + 
+  theme_minimal()
+
+
+
+summary(lm(res_visual_svl_sex ~ Year_invasion * Sex, data = summary_tracking_complete_no_rep_outside))
+
+
+summary(lm(res_visual_svl_sex ~ Year_invasion, data = summary_tracking_complete_no_rep_outside, subset = (Sex_12 == 1)))
 
 
 #####
@@ -3682,6 +4006,40 @@ curve(dnorm(x, mean = mean(log(summary_tracking_complete_no_rep_outside$Visual_e
 plot(density(log(summary_tracking_complete_no_rep_outside$Visual_exp)), main = "Gráfico de densidad de tus datos")
 
 shapiro.test(log(summary_tracking_complete_no_rep_outside$Visual_exp))
+
+
+
+
+
+##### Part 10.1: Residuals structure
+
+par(mfrow = c(1,2))
+
+hist((summary_tracking_complete_no_rep_outside$res_visual_svl_sex), prob = TRUE, main = "Histograma de tus datos")
+
+curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_outside$res_visual_svl_sex)), sd = sd((summary_tracking_complete_no_rep_outside$res_visual_svl_sex))), 
+      col = "blue", lwd = 2, add = TRUE)
+
+plot(density((summary_tracking_complete_no_rep_outside$res_visual_svl_sex)), main = "Gráfico de densidad de tus datos")
+
+shapiro.test((summary_tracking_complete_no_rep_outside$res_visual_svl_sex))
+
+ggpairs(summary_tracking_complete_no_rep_outside[, c("res_head_cond", "res_body_cond", "res_visual_cond")])
+
+
+pairs(~ res_head_svl + res_body_svl + res_visual_svl, 
+      data = summary_tracking_complete_no_rep_outside,
+      diag.panel = NULL)
+
+
+
+
+
+
+#####
+
+
+
 
 
 
