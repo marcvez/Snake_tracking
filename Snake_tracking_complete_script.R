@@ -2692,6 +2692,24 @@ for(i in 1:nrow(summary_tracking_complete_no_rep_outside)){
   
 }
 
+for(i in 1:nrow(summary_tracking_complete_no_rep_outside_noeggs)){
+  
+  if(summary_tracking_complete_no_rep_outside_noeggs$Sex[i] == "F"){
+    
+    summary_tracking_complete_no_rep_outside_noeggs$Sex_12[i] <- 1
+    
+  } else if(summary_tracking_complete_no_rep_outside_noeggs$Sex[i] == "M"){
+    
+    summary_tracking_complete_no_rep_outside_noeggs$Sex_12[i] <- 2
+    
+  } else {
+    
+    summary_tracking_complete_no_rep_outside_noeggs$Sex_12[i] <- 3
+    
+  }
+  
+}
+
 
 # plots, together and by sex
 ggplot(summary_tracking_complete_no_rep_outside, aes(x = (Condition), y = log1p(Time_head_out_sec_raw))) +
@@ -2706,7 +2724,7 @@ ggplot(summary_tracking_complete_no_rep_outside, aes(x = (Condition), y = log1p(
 
 
 
-ggplot(summary_tracking_complete_no_rep_outside, aes(x = Distance_Noahs, y = res_visual_svl_sex, col = Sex)) +
+ggplot(summary_tracking_complete_no_rep, aes(x = Year_invasion, y = res_visual_svl_sex, col = Sex)) +
   geom_point() + 
   geom_smooth(method=lm, se = T) + 
   xlab("Distance to Noah's Garden") + 
@@ -2715,10 +2733,10 @@ ggplot(summary_tracking_complete_no_rep_outside, aes(x = Distance_Noahs, y = res
 
 
 
-summary(lm(res_visual_svl_sex ~ Year_invasion * Sex, data = summary_tracking_complete_no_rep_outside))
+summary(lm(res_visual_svl_sex ~ Year_invasion * Sex, data = summary_tracking_complete_no_rep_outside_noeggs))
 
 
-summary(lm(res_visual_svl_sex ~ Year_invasion, data = summary_tracking_complete_no_rep_outside, subset = (Sex_12 == 1)))
+summary(lm(res_visual_svl_sex ~ Year_invasion, data = summary_tracking_complete_no_rep_outside_noeggs, subset = (Sex_12 == 1)))
 
 
 #####
@@ -2913,6 +2931,8 @@ for (i in 1:nrow(repeat_ind)){
 # Order snakes by ID (first the first trial and second the repeatiblity test)
 repeat_ind <- repeat_ind[order(repeat_ind$ID), ]
 
+repeat_ind_no_gravid <- repeat_ind[repeat_ind$N_eggs == 0, ]
+
 # empty plot 
 plot(NULL, xlim = c(1, 2), ylim = c(0, 3000), xlab = "First trial (left)   |   Repeatibility trial (right)", ylab = "Time to head-out", xaxt = "n")
 
@@ -2948,7 +2968,7 @@ ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_out_sec_raw, colo
   ggtitle("Head-out time (s) since start of the experiment")
 
 # General plot (no groups)
-ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_out_sec_raw)) +
+ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
   theme_bw() + 
   stat_summary(
     geom = "errorbar", 
@@ -2967,7 +2987,7 @@ ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_out_sec_raw)) +
 # interclass correlation indexes (ICC, package IRR)
 
 # We extract the variable that we want to test repeatability
-icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "time_hidden_bf_head_out", "repeat_trial")])
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
 
 # Put it in wide format
 icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
@@ -2977,6 +2997,9 @@ icc_data_wide <- icc_data_wide[, -1]
 
 # Change column names
 colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
 
 # Consistency (ICC)
 icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
@@ -2995,6 +3018,138 @@ summary(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
 plot(icc_data_wide$Second_trial ~ icc_data_wide$First_trial, xlab = "First trial's head-out time (s)", ylab = "Second trial's head-out time (s)")
 
 abline(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
+
+
+# by sex
+
+ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_minimal() + 
+  facet_wrap(~ Sex) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial", "Sex")])
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4)]
+
+icc_data_M <- icc_data_M[, -c(4)]
+
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# without gravid females
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial", "Sex", "N_eggs")])
+
+# Do not include gravid females
+icc_data <- icc_data[icc_data$N_eggs == 0, ]
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4, 5)]
+
+icc_data_M <- icc_data_M[, -c(4, 5)]
+
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+
+
+# general
+
+icc_data <- as.data.frame(repeat_ind_no_gravid[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+
+
+
+
 
 
 #####
@@ -3036,6 +3191,9 @@ icc_data_wide <- icc_data_wide[, -1]
 # Change column names
 colnames(icc_data_wide) <- c("First_trial", "Second_trial")
 
+# log transform variables
+icc_data_wide <- log1p(icc_data_wide)
+
 # Consistency (ICC)
 icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
 
@@ -3053,6 +3211,133 @@ summary(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
 plot(icc_data_wide$Second_trial ~ icc_data_wide$First_trial, xlab = "First trial's body-out time (s)", ylab = "Second trial's body-out time (s)")
 
 abline(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
+
+
+# by sex
+
+ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_minimal() + 
+  facet_wrap(~ Sex) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial", "Sex")])
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4)]
+
+icc_data_M <- icc_data_M[, -c(4)]
+
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# without gravid females
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial", "Sex", "N_eggs")])
+
+# Do not include gravid females
+icc_data <- icc_data[icc_data$N_eggs == 0, ]
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4, 5)]
+
+icc_data_M <- icc_data_M[, -c(4, 5)]
+
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+
+# general
+
+icc_data <- as.data.frame(repeat_ind_no_gravid[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
 
 
 #####
@@ -3096,6 +3381,9 @@ icc_data_wide <- icc_data_wide[, -1]
 # Change column names
 colnames(icc_data_wide) <- c("First_trial", "Second_trial")
 
+# log transform variables
+icc_data_wide <- log1p(icc_data_wide)
+
 # Consistency (ICC)
 icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
 
@@ -3114,14 +3402,135 @@ plot(icc_data_wide$Second_trial ~ icc_data_wide$First_trial, xlab = "First trial
 
 abline(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
 
+
+# by sex
+
+ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Visual_exp))) +
+  theme_minimal() + 
+  facet_wrap(~ Sex) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Visual_exp", "repeat_trial", "Sex")])
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4)]
+
+icc_data_M <- icc_data_M[, -c(4)]
+
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# without gravid females
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Visual_exp", "repeat_trial", "Sex", "N_eggs")])
+
+# Do not include gravid females
+icc_data <- icc_data[icc_data$N_eggs == 0, ]
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4, 5)]
+
+icc_data_M <- icc_data_M[, -c(4, 5)]
+
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+
+# general
+
+icc_data <- as.data.frame(repeat_ind_no_gravid[, c("Snake_ID", "Visual_exp", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+
+
 #####
-
-
-
-
-
-
-
 
 
 #####
@@ -3130,7 +3539,7 @@ abline(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
 # Part 6.3.4: Joint plot
 #####
 
-head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_out_sec_raw)) +
+head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
   theme_bw() + 
   stat_summary(
     geom = "errorbar", 
@@ -3146,14 +3555,13 @@ head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_head_o
                geom = "pointrange", color = "black", size = 0.2,
                position = position_nudge(x = c(-0.2, 0.2))) +
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
-  ylab("Time (s)") + 
+  ylab("log(Time to head-out (s))") + 
   ggtitle("Head-out") + 
-  labs(caption = "ICC = 0.855 | p < 0.001") +
-  theme(plot.caption = element_text(hjust = 0.5)) +
-  coord_cartesian(ylim = c(0.5, NA))
+  labs(caption = "ICC = 0.694 | p < 0.001") +
+  theme(plot.caption = element_text(hjust = 0.5))
 
 
-body_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_body_out_sec_raw)) +
+body_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
   theme_bw() + 
   stat_summary(
     geom = "errorbar", 
@@ -3169,15 +3577,14 @@ body_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Time_body_o
                geom = "pointrange", color = "black", size = 0.2,
                position = position_nudge(x = c(-0.2, 0.2))) +
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
-  ylab("Time (s)") + 
+  ylab("log(Time to body-out (s))") + 
   ggtitle("Body-out") + 
-  labs(caption = "ICC = 0.777 | p < 0.001") +
-  theme(plot.caption = element_text(hjust = 0.5)) +
-  coord_cartesian(ylim = c(0.5, NA))
+  labs(caption = "ICC = 0.713 | p < 0.001") +
+  theme(plot.caption = element_text(hjust = 0.5))
 
 repeat_ind$Visual_exp <- repeat_ind$Time_body_out_sec_raw - repeat_ind$Time_head_out_sec_raw
 
-Visual_exp_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Visual_exp)) +
+Visual_exp_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Visual_exp))) +
   theme_bw() + 
   stat_summary(
     geom = "errorbar", 
@@ -3193,15 +3600,249 @@ Visual_exp_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = Visual_ex
                geom = "pointrange", color = "black", size = 0.2,
                position = position_nudge(x = c(-0.2, 0.2))) +
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") +
-  ylab("Time (s)") + 
+  ylab("log(Visual exploration time (s))") + 
   ggtitle("Visual exploration") + 
-  labs(caption = "ICC = 0.382 | p = 0.0497") +
-  theme(plot.caption = element_text(hjust = 0.5)) +
-  coord_cartesian(ylim = c(0.5, NA))
+  labs(caption = "ICC = 0.809 | p < 0.001") +
+  theme(plot.caption = element_text(hjust = 0.5))
 
 
 ggarrange(head_out_rep, body_out_rep, Visual_exp_rep, 
           ncol = 3, nrow = 1)
+
+
+
+# by sex
+
+head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.69 | p < 0.05",
+                                            "M" = "Male\nICC = 0.721 | p < 0.01"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to head-out (s))") + 
+  ggtitle("Head-out") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+body_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.855 | p < 0.01",
+                                            "M" = "Male\nICC = 0.648 | p < 0.01"))) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) + 
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to body-out (s))") + 
+  ggtitle("Body-out") + 
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+Visual_exp_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Visual_exp))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.467 | p = 0.125",
+                                            "M" = "Male\nICC = 0.979 | p < 0.001"))) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") +
+  ylab("log(Visual exploration time (s))") + 
+  ggtitle("Visual exploration") + 
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+ggarrange(head_out_rep, body_out_rep, Visual_exp_rep, 
+          ncol =3, nrow = 1)
+
+
+
+# without gravid females
+
+head_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.798 | p < 0.05",
+                                            "M" = "Male\nICC = 0.721 | p < 0.01"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to head-out (s))") + 
+  ggtitle("Head-out") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+body_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.831 | p < 0.05",
+                                            "M" = "Male\nICC = 0.648 | p < 0.01"))) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) + 
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to body-out (s))") + 
+  ggtitle("Body-out") + 
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+Visual_exp_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Visual_exp))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.974 | p < 0.001",
+                                            "M" = "Male\nICC = 0.979 | p < 0.001"))) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") +
+  ylab("log(Visual exploration time (s))") + 
+  ggtitle("Visual exploration") + 
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+ggarrange(head_out_rep, body_out_rep, Visual_exp_rep, 
+          ncol =3, nrow = 1)
+
+# general
+
+head_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to head-out (s))") + 
+  ggtitle("Head-out") + 
+  labs(caption = "ICC = 0.725 | p < 0.001") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+body_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) + 
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to body-out (s))") + 
+  ggtitle("Body-out") + 
+  labs(caption = "ICC = 0.694 | p < 0.01") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+repeat_ind$Visual_exp <- repeat_ind$Time_body_out_sec_raw - repeat_ind$Time_head_out_sec_raw
+
+Visual_exp_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Visual_exp))) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") +
+  ylab("log(Visual exploration time (s))") + 
+  ggtitle("Visual exploration") + 
+  labs(caption = "ICC = 0.976 | p < 0.001") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+
+ggarrange(head_out_rep, body_out_rep, Visual_exp_rep, 
+          ncol = 3, nrow = 1)
+
+
+
+
+
 
 
 #####
@@ -3704,6 +4345,70 @@ plot(summary_tracking_complete_no_rep$Year_invasion, summary_tracking_complete_n
 lineplot()
 
 hist(summary_tracking_complete_no_rep$Time_head_out_sec_raw, breaks = 100, main = 'Censored Data')
+
+
+# log transformation
+summary_tracking_complete_no_rep$Time_head_out_sec_raw_log <- log1p(summary_tracking_complete_no_rep$Time_head_out_sec_raw)
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Time_head_out_sec_raw_log ~ Year_invasion, data = summary_tracking_complete_no_rep,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Time_head_out_sec_raw_log ~ Year_invasion, data = summary_tracking_complete_no_rep, 
+                   left = -Inf, right = max(summary_tracking_complete_no_rep$Time_head_out_sec_raw_log))
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Time_head_out_sec_raw_log ~ Year_invasion, data = summary_tracking_complete_no_rep)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep$Time_head_out_sec_raw_log[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw_log & summary_tracking_complete_no_rep$Time_head_out_sec_raw_log < max(summary_tracking_complete_no_rep$Time_head_out_sec_raw_log)] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw_log & summary_tracking_complete_no_rep$Time_head_out_sec_raw_log < max(summary_tracking_complete_no_rep$Time_head_out_sec_raw_log)])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep$Year_invasion, summary_tracking_complete_no_rep$Time_head_out_sec_raw_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep$Time_head_out_sec_raw_log, breaks = 100, main = 'Censored Data')
+
 
 
 
