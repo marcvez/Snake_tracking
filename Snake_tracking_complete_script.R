@@ -37,6 +37,8 @@ library(survminer)
 library(ggfortify)
 library(factoextra)
 library(graphics)
+library(olsrr)
+library(corrplot)
 
 #####
 
@@ -2160,8 +2162,11 @@ summary_tracking_complete_no_rep <- summary_tracking_complete[summary_tracking_c
 # Also, for some individuals, we are only going to use individuals that actually got out of the refuge (Body-out != 3000)
 summary_tracking_complete_no_rep_outside <- summary_tracking_complete_no_rep[summary_tracking_complete_no_rep$Time_body_out_sec_raw != time_limit, ]
 
-# Create one without gravid individuals?
+# Create one without gravid individuals that got out (visual exploration)
 summary_tracking_complete_no_rep_outside_noeggs <- summary_tracking_complete_no_rep_outside[summary_tracking_complete_no_rep_outside$N_eggs == 0, ]
+
+# Create one without gravid individuals with censored data (head-out and body-out)
+summary_tracking_complete_no_rep_noeggs <- summary_tracking_complete_no_rep[summary_tracking_complete_no_rep$N_eggs == 0, ]
 
 # Part 6.1: Preliminary plots
 #####
@@ -2408,7 +2413,7 @@ ggplot(distance_over_time_sum, aes(x = Time_Period, y = Distance, group = Snake_
 
 ##### 
 
-# 6.1.1: Residual extraction
+# 6.1.1: Residual extraction (NOT CORRECT!)
 #####
 
 residual_extraction_no_rep_outside <- function(){
@@ -2904,6 +2909,40 @@ sm.survival(
 
 # Repeatability
 
+# Only snakes that got out of the refuge (for visual exploration)
+
+# ind that got out
+summary_tracking_complete_outside <- summary_tracking_complete[summary_tracking_complete$Time_body_out_sec_raw != time_limit, ]
+
+# select repeated individuals within the ones that got out
+repeat_ID_outside <- summary_tracking_complete_outside[duplicated(summary_tracking_complete_outside$ID), "ID"]
+
+# select individuals
+repeat_ind_outside <- summary_tracking_complete_outside[summary_tracking_complete_outside$Snake_ID %in% repeat_ID_outside, ]
+
+# assign 1 to first trials
+repeat_ind_outside$repeat_trial <- 1
+
+for (i in 1:nrow(repeat_ind_outside)){
+  
+  # And if duplicated, assign 2
+  if(duplicated(repeat_ind_outside$ID)[i] == T){
+    
+    repeat_ind_outside$repeat_trial[i] <- 2
+    
+  } else {
+    
+  }
+  
+}
+
+# Order snakes by ID (first the first trial and second the repeatiblity test)
+repeat_ind_outside <- repeat_ind_outside[order(repeat_ind_outside$ID), ]
+
+repeat_ind_outside_no_gravid <- repeat_ind_outside[repeat_ind_outside$N_eggs == 0, ]
+
+
+
 # Select rows with duplicated ID (repeatability)
 
 repeat_ID <- summary_tracking_complete[duplicated(summary_tracking_complete$ID), "ID"]
@@ -3349,18 +3388,18 @@ icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
 # empty plot 
 plot(NULL, xlim = c(1, 2), ylim = c(0, 3000), xlab = "First trial (left)   |   Repeatibility trial (right)", ylab = "Gap time", xaxt = "n")
 
-repeat_ind$Visual_exp <- repeat_ind$Time_body_out_sec_raw - repeat_ind$Time_head_out_sec_raw
+repeat_ind_outside$Visual_exp <- repeat_ind_outside$Time_body_out_sec_raw - repeat_ind_outside$Time_head_out_sec_raw
 
 # connect pairs of dots (same ind, first and second trial)
-for(i in 1:(nrow(repeat_ind)/2)){
+for(i in 1:(nrow(repeat_ind_outside)/2)){
   
-  if(repeat_ind$Inv_situation[2*i] == "FRONT"){
+  if(repeat_ind_outside$Inv_situation[2*i] == "FRONT"){
     
-    lines(c(repeat_ind$repeat_trial[(2*i) - 1], repeat_ind$repeat_trial[(2*i)]), c(repeat_ind$Visual_exp[(2*i) - 1], repeat_ind$Visual_exp[(2*i)]), type = "b", col = "red")
+    lines(c(repeat_ind_outside$repeat_trial[(2*i) - 1], repeat_ind_outside$repeat_trial[(2*i)]), c(repeat_ind_outside$Visual_exp[(2*i) - 1], repeat_ind_outside$Visual_exp[(2*i)]), type = "b", col = "red")
     
   } else {
     
-    lines(c(repeat_ind$repeat_trial[(2*i) - 1], repeat_ind$repeat_trial[(2*i)]), c(repeat_ind$Visual_exp[(2*i) - 1], repeat_ind$Visual_exp[(2*i)]), type = "b", col = "blue")
+    lines(c(repeat_ind_outside$repeat_trial[(2*i) - 1], repeat_ind_outside$repeat_trial[(2*i)]), c(repeat_ind_outside$Visual_exp[(2*i) - 1], repeat_ind_outside$Visual_exp[(2*i)]), type = "b", col = "blue")
     
   }
   
@@ -3370,7 +3409,7 @@ for(i in 1:(nrow(repeat_ind)/2)){
 # interclass correlation indexes (ICC, package IRR)
 
 # We extract the variable that we want to test repeatability
-icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Visual_exp", "repeat_trial")])
+icc_data <- as.data.frame(repeat_ind_outside[, c("Snake_ID", "Visual_exp", "repeat_trial")])
 
 # Put it in wide format
 icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
@@ -3405,7 +3444,7 @@ abline(lm(icc_data_wide$Second_trial ~ icc_data_wide$First_trial))
 
 # by sex
 
-ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Visual_exp))) +
+ggplot(data = repeat_ind_outside, aes(x = Repeatability, y = log1p(Visual_exp))) +
   theme_minimal() + 
   facet_wrap(~ Sex) +
   stat_summary(
@@ -3423,7 +3462,7 @@ ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Visual_exp))) +
 
 
 # We extract the variable that we want to test repeatability
-icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Visual_exp", "repeat_trial", "Sex")])
+icc_data <- as.data.frame(repeat_ind_outside[, c("Snake_ID", "Visual_exp", "repeat_trial", "Sex")])
 
 # divide by sex
 icc_data_F <- icc_data[icc_data$Sex == "F", ]
@@ -3465,7 +3504,7 @@ icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
 # without gravid females
 
 # We extract the variable that we want to test repeatability
-icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Visual_exp", "repeat_trial", "Sex", "N_eggs")])
+icc_data <- as.data.frame(repeat_ind_outside[, c("Snake_ID", "Visual_exp", "repeat_trial", "Sex", "N_eggs")])
 
 # Do not include gravid females
 icc_data <- icc_data[icc_data$N_eggs == 0, ]
@@ -3510,7 +3549,7 @@ icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
 
 # general
 
-icc_data <- as.data.frame(repeat_ind_no_gravid[, c("Snake_ID", "Visual_exp", "repeat_trial")])
+icc_data <- as.data.frame(repeat_ind_outside_no_gravid[, c("Snake_ID", "Visual_exp", "repeat_trial")])
 
 # Put it in wide format
 icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
@@ -3557,7 +3596,7 @@ head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
   ylab("log(Time to head-out (s))") + 
   ggtitle("Head-out") + 
-  labs(caption = "ICC = 0.694 | p < 0.001") +
+  labs(caption = "ICC = 0.695 | p < 0.001") +
   theme(plot.caption = element_text(hjust = 0.5))
 
 
@@ -3579,12 +3618,12 @@ body_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
   ylab("log(Time to body-out (s))") + 
   ggtitle("Body-out") + 
-  labs(caption = "ICC = 0.713 | p < 0.001") +
+  labs(caption = "ICC = 0.706 | p < 0.001") +
   theme(plot.caption = element_text(hjust = 0.5))
 
 repeat_ind$Visual_exp <- repeat_ind$Time_body_out_sec_raw - repeat_ind$Time_head_out_sec_raw
 
-Visual_exp_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Visual_exp))) +
+Visual_exp_rep <- ggplot(data = repeat_ind_outside, aes(x = Repeatability, y = log1p(Visual_exp))) +
   theme_bw() + 
   stat_summary(
     geom = "errorbar", 
@@ -3602,7 +3641,7 @@ Visual_exp_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Vis
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") +
   ylab("log(Visual exploration time (s))") + 
   ggtitle("Visual exploration") + 
-  labs(caption = "ICC = 0.809 | p < 0.001") +
+  labs(caption = "ICC = 0.296 | p = 0.155") +
   theme(plot.caption = element_text(hjust = 0.5))
 
 
@@ -3616,7 +3655,7 @@ ggarrange(head_out_rep, body_out_rep, Visual_exp_rep,
 head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
   theme_bw() + 
   facet_wrap(~ Sex, labeller = labeller(Sex = 
-                                          c("F" = "Female\nICC = 0.69 | p < 0.05",
+                                          c("F" = "Female\nICC = 0.688 | p < 0.05",
                                             "M" = "Male\nICC = 0.721 | p < 0.01"))) + 
   stat_summary(
     geom = "errorbar", 
@@ -3640,7 +3679,7 @@ head_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_
 body_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
   theme_bw() + 
   facet_wrap(~ Sex, labeller = labeller(Sex = 
-                                          c("F" = "Female\nICC = 0.855 | p < 0.01",
+                                          c("F" = "Female\nICC = 0.826 | p < 0.01",
                                             "M" = "Male\nICC = 0.648 | p < 0.01"))) +
   stat_summary(
     geom = "errorbar", 
@@ -3661,11 +3700,11 @@ body_out_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_
   theme(plot.caption = element_text(hjust = 0.5))
 
 
-Visual_exp_rep <- ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Visual_exp))) +
+Visual_exp_rep <- ggplot(data = repeat_ind_outside, aes(x = Repeatability, y = log1p(Visual_exp))) +
   theme_bw() + 
   facet_wrap(~ Sex, labeller = labeller(Sex = 
-                                          c("F" = "Female\nICC = 0.467 | p = 0.125",
-                                            "M" = "Male\nICC = 0.979 | p < 0.001"))) +
+                                          c("F" = "Female\nICC = -0.0178 | p = 0.491",
+                                            "M" = "Male\nICC = 0.313 | p = 0.192"))) +
   stat_summary(
     geom = "errorbar", 
     fun.data = mean_cl_boot, 
@@ -3695,7 +3734,7 @@ ggarrange(head_out_rep, body_out_rep, Visual_exp_rep,
 head_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
   theme_bw() + 
   facet_wrap(~ Sex, labeller = labeller(Sex = 
-                                          c("F" = "Female\nICC = 0.798 | p < 0.05",
+                                          c("F" = "Female\nICC = 0.785 | p < 0.05",
                                             "M" = "Male\nICC = 0.721 | p < 0.01"))) + 
   stat_summary(
     geom = "errorbar", 
@@ -3719,7 +3758,7 @@ head_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = l
 body_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
   theme_bw() + 
   facet_wrap(~ Sex, labeller = labeller(Sex = 
-                                          c("F" = "Female\nICC = 0.831 | p < 0.05",
+                                          c("F" = "Female\nICC = 0.807 | p < 0.05",
                                             "M" = "Male\nICC = 0.648 | p < 0.01"))) +
   stat_summary(
     geom = "errorbar", 
@@ -3740,11 +3779,11 @@ body_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = l
   theme(plot.caption = element_text(hjust = 0.5))
 
 
-Visual_exp_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Visual_exp))) +
+Visual_exp_rep <- ggplot(data = repeat_ind_outside_no_gravid, aes(x = Repeatability, y = log1p(Visual_exp))) +
   theme_bw() + 
   facet_wrap(~ Sex, labeller = labeller(Sex = 
-                                          c("F" = "Female\nICC = 0.974 | p < 0.001",
-                                            "M" = "Male\nICC = 0.979 | p < 0.001"))) +
+                                          c("F" = "Female\nICC = 0.402 | p < 0.244",
+                                            "M" = "Male\nICC = 0.313 | p < 0.192"))) +
   stat_summary(
     geom = "errorbar", 
     fun.data = mean_cl_boot, 
@@ -3787,7 +3826,7 @@ head_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = l
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
   ylab("log(Time to head-out (s))") + 
   ggtitle("Head-out") + 
-  labs(caption = "ICC = 0.725 | p < 0.001") +
+  labs(caption = "ICC = 0.726 | p < 0.001") +
   theme(plot.caption = element_text(hjust = 0.5))
 
 
@@ -3809,12 +3848,12 @@ body_out_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = l
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
   ylab("log(Time to body-out (s))") + 
   ggtitle("Body-out") + 
-  labs(caption = "ICC = 0.694 | p < 0.01") +
+  labs(caption = "ICC = 0.688 | p < 0.001") +
   theme(plot.caption = element_text(hjust = 0.5))
 
 repeat_ind$Visual_exp <- repeat_ind$Time_body_out_sec_raw - repeat_ind$Time_head_out_sec_raw
 
-Visual_exp_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Visual_exp))) +
+Visual_exp_rep <- ggplot(data = repeat_ind_outside_no_gravid, aes(x = Repeatability, y = log1p(Visual_exp))) +
   theme_bw() + 
   stat_summary(
     geom = "errorbar", 
@@ -3832,7 +3871,7 @@ Visual_exp_rep <- ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y =
   geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") +
   ylab("log(Visual exploration time (s))") + 
   ggtitle("Visual exploration") + 
-  labs(caption = "ICC = 0.976 | p < 0.001") +
+  labs(caption = "ICC = 0.484 | p < 0.05") +
   theme(plot.caption = element_text(hjust = 0.5))
 
 
@@ -3848,8 +3887,114 @@ ggarrange(head_out_rep, body_out_rep, Visual_exp_rep,
 #####
 
 
-# Part 6.4: Behaviour and area use
+# Part 6.4: Behaviour and area use (WORK IN PROGRESS)
 #####
+
+
+# We are going to build a new data frame where we are going to select individuals that at least, have been outside the initial refuge for x min or more (variable). For those individuals, we are going to extract the behaviours exhibited during those x min since they perform head-out and since they perform body-out.
+
+# We are going to track the following behaviours: head-out before body-out, head-out after body-out, hiding time, moving, exploring wall, immobile exposed and (hiding in corner)
+
+# Duplicate data frame
+Snake_array_dupl <- Snake_array
+
+# No repeatability filter
+snake_id <- names(Snake_array[1,1,])
+
+duplicated(snake_id)
+
+dupl_positions <- array(data = NA)
+
+a <- 1
+
+for (i in 1:length(snake_id)){
+  
+  if(duplicated(snake_id)[i] == FALSE){
+    
+    
+  } else {
+    
+    dupl_positions[a] <- i
+    
+    a <- a + 1
+    
+  }
+  
+}
+
+# Final data frame without duplicates (repeatability)
+Snake_array_dupl <- Snake_array_dupl[, , -dupl_positions]
+
+duplicated(names(Snake_array_dupl[1,1,]))
+
+
+# How much time do we want to analyse
+study_time <- 600
+
+# Create data frame
+behaviour_df <- as.data.frame(matrix(data = NA, ncol = 13, nrow = length(names(Snake_array_dupl[1,1,]))))
+
+# Column names
+colnames(behaviour_df) <- c("Snake_ID", "headout_bf_bodyout", "headout_after_bodyout", "exploring_arena", "exploring_wall", "immobile_exposed", "hiding", "hiding_corner", "year", "distance", "Sex", "SVL", "treatment")
+
+
+for (i in 1:length(names(Snake_array_dupl[1,1,]))){
+
+  
+  if(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time <= 3000){
+    
+    
+    behaviour_df$Snake_ID[i] <- summary_tracking_complete_no_rep$Snake_ID[i]
+    
+    behaviour_df$headout_bf_bodyout[i] <- sum(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + 1):min((summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time), summary_tracking_complete_no_rep$Time_body_out_sec_raw[i]), 22, i] == "head-out")
+    
+    
+    behaviour_df$headout_after_bodyout[i] <- sum(Snake_array_dupl[min((summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1),(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time + 1)):(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time + 1), 22, i] == "head-out")
+    
+    
+    behaviour_df$exploring_arena[i] <- sum(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time), 22, i] == "moving")
+    
+    behaviour_df$exploring_wall[i] <- sum(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time), 22, i] == "exploring wall")
+    
+    behaviour_df$immobile_exposed[i] <- sum(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time), 22, i] == "immobile exposed")
+    
+    behaviour_df$hiding[i] <- sum(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time), 22, i] == "hidden")
+    
+    behaviour_df$hiding_corner[i] <- sum(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_head_out_sec_raw[i] + study_time), 22, i] == "hiding / head-out")
+    
+    behaviour_df$year[i] <- summary_tracking_complete_no_rep$Year_invasion[i]
+    
+    behaviour_df$distance[i] <- summary_tracking_complete_no_rep$Distance_Noahs[i]
+    
+    behaviour_df$Sex[i] <- summary_tracking_complete_no_rep$Sex[i]
+    
+    behaviour_df$SVL[i] <- summary_tracking_complete_no_rep$SVL[i]
+    
+    behaviour_df$treatment[i] <- summary_tracking_complete_no_rep$Inv_situation[i]
+    
+    
+  } else {
+    
+    
+  }
+  
+}
+
+
+behaviour_df <- behaviour_df %>% drop_na(Snake_ID)
+
+
+sum(behaviour_df[2,2:8])
+
+
+
+
+
+
+
+
+
+
 
 # Behaviour
 # Select columns of interest for stacked behaviour plot
@@ -3870,6 +4015,8 @@ stacked_behaviour_treatment <- stacked_behaviour
 stacked_behaviour_treatment$treatment <- summary_tracking_complete_no_rep$Inv_situation
 
 stacked_behaviour_treatment$year <- summary_tracking_complete_no_rep$Year_invasion
+
+stacked_behaviour_treatment$distance <- summary_tracking_complete_no_rep$Distance_Noahs
 
 # Snake_ID ordered by year of invasion
 snakes_order_by_year <- summary_tracking_complete_no_rep[, c("Snake_ID", "Year_invasion")]
@@ -4473,6 +4620,74 @@ lineplot()
 hist(summary_tracking_complete_no_rep$Time_body_out_sec_raw, breaks = 100, main = 'Censored Data')
 
 
+# log transformation
+summary_tracking_complete_no_rep$Time_body_out_sec_raw_log <- log1p(summary_tracking_complete_no_rep$Time_body_out_sec_raw)
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Time_body_out_sec_raw_log ~ Year_invasion, data = summary_tracking_complete_no_rep,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Time_body_out_sec_raw_log ~ Year_invasion, data = summary_tracking_complete_no_rep, 
+                   left = -Inf, right = max(summary_tracking_complete_no_rep$Time_body_out_sec_raw_log))
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Time_body_out_sec_raw_log ~ Year_invasion, data = summary_tracking_complete_no_rep)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep$Time_body_out_sec_raw_log[0 <= summary_tracking_complete_no_rep$Time_body_out_sec_raw_log & summary_tracking_complete_no_rep$Time_body_out_sec_raw_log < max(summary_tracking_complete_no_rep$Time_body_out_sec_raw_log)] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Time_body_out_sec_raw_log & summary_tracking_complete_no_rep$Time_body_out_sec_raw_log < max(summary_tracking_complete_no_rep$Time_body_out_sec_raw_log)])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep$Year_invasion, summary_tracking_complete_no_rep$Time_body_out_sec_raw_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep$Time_body_out_sec_raw_log, breaks = 100, main = 'Censored Data')
+
+
+
+
+
+
+
 
 
 # Visual exploration
@@ -4538,6 +4753,73 @@ hist(summary_tracking_complete_no_rep$Visual_exp, breaks = 100, main = 'Censored
 
 
 
+# log transformation
+summary_tracking_complete_no_rep$Visual_exp_log <- log1p(summary_tracking_complete_no_rep$Visual_exp)
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Visual_exp_log ~ Year_invasion, data = summary_tracking_complete_no_rep,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Visual_exp_log ~ Year_invasion, data = summary_tracking_complete_no_rep, 
+                   left = min(summary_tracking_complete_no_rep$Visual_exp_log), right = Inf )
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Visual_exp_log ~ Year_invasion, data = summary_tracking_complete_no_rep)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep$Visual_exp_log[0 < summary_tracking_complete_no_rep$Visual_exp_log & summary_tracking_complete_no_rep$Visual_exp_log <= 3000] ~ summary_tracking_complete_no_rep$Year_invasion[0 < summary_tracking_complete_no_rep$Visual_exp_log & summary_tracking_complete_no_rep$Visual_exp_log <= 3000])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep$Year_invasion, summary_tracking_complete_no_rep$Visual_exp_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep$Visual_exp_log, breaks = 100, main = 'Censored Data')
+
+
+
+
+
+
 
 
 
@@ -4565,6 +4847,402 @@ shapiro.test(log(summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw)
 
 
 
+
+# all by sex
+
+
+
+summary_tracking_complete_no_rep_F <- summary_tracking_complete_no_rep[summary_tracking_complete_no_rep$Sex == "F", ]
+
+summary_tracking_complete_no_rep_M <- summary_tracking_complete_no_rep[summary_tracking_complete_no_rep$Sex == "M", ]
+
+
+# head-out
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Time_head_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Time_head_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F, 
+                   left = -Inf, right = max(summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log))
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Time_head_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log[0 <= summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log & summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log < max(summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log)] ~ summary_tracking_complete_no_rep_F$Distance_Noahs[0 <= summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log & summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log < max(summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log)])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_F$Distance_Noahs, summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log, breaks = 100, main = 'Censored Data')
+
+
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Time_head_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Time_head_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M, 
+                   left = -Inf, right = max(summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log))
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Time_head_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log[0 <= summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log & summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log < max(summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log)] ~ summary_tracking_complete_no_rep_M$Distance_Noahs[0 <= summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log & summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log < max(summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log)])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_M$Distance_Noahs, summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log, breaks = 100, main = 'Censored Data')
+
+
+
+# body-out
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Time_body_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Time_body_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F, 
+                   left = -Inf, right = max(summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log))
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Time_body_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log[0 <= summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log & summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log < max(summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log)] ~ summary_tracking_complete_no_rep_F$Distance_Noahs[0 <= summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log & summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log < max(summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log)])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_F$Distance_Noahs, summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log, breaks = 100, main = 'Censored Data')
+
+
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Time_body_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Time_body_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M, 
+                   left = -Inf, right = max(summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log))
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Time_body_out_sec_raw_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log[0 <= summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log & summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log < max(summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log)] ~ summary_tracking_complete_no_rep_M$Distance_Noahs[0 <= summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log & summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log < max(summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log)])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_M$Distance_Noahs, summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log, breaks = 100, main = 'Censored Data')
+
+
+
+
+# visual exploration
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Visual_exp_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Visual_exp_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F, 
+                   left = min(summary_tracking_complete_no_rep_F$Visual_exp_log), right = Inf )
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Visual_exp_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_F)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep_F$Visual_exp_log[0 < summary_tracking_complete_no_rep_F$Visual_exp_log & summary_tracking_complete_no_rep_F$Visual_exp_log <= 3000] ~ summary_tracking_complete_no_rep_F$Distance_Noahs[0 < summary_tracking_complete_no_rep_F$Visual_exp_log & summary_tracking_complete_no_rep_F$Visual_exp_log <= 3000])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_F$Distance_Noahs, summary_tracking_complete_no_rep_F$Visual_exp_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep_F$Visual_exp_log, breaks = 100, main = 'Censored Data')
+
+
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(Visual_exp_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(Visual_exp_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M, 
+                   left = min(summary_tracking_complete_no_rep_M$Visual_exp_log), right = Inf )
+summary(fit.cen)
+# There is no significant regression (p = 0.505)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(Visual_exp_log ~ Distance_Noahs, data = summary_tracking_complete_no_rep_M)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep_M$Visual_exp_log[0 < summary_tracking_complete_no_rep_M$Visual_exp_log & summary_tracking_complete_no_rep_M$Visual_exp_log <= 3000] ~ summary_tracking_complete_no_rep_M$Distance_Noahs[0 < summary_tracking_complete_no_rep_M$Visual_exp_log & summary_tracking_complete_no_rep_M$Visual_exp_log <= 3000])
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_M$Distance_Noahs, summary_tracking_complete_no_rep_M$Visual_exp_log, pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(summary_tracking_complete_no_rep_M$Visual_exp_log, breaks = 100, main = 'Censored Data')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Example 2: Tobit model
 
 install.packages("GGally")
@@ -4573,7 +5251,7 @@ library(GGally)
 library(VGAM)
 
 
-ggpairs(summary_tracking_complete_no_rep[, c("Time_head_out_sec_raw", "Time_body_out_sec_raw", "Visual_exp")])
+ggpairs(summary_tracking_complete_no_rep[, c("Time_head_out_sec_raw_log", "Time_body_out_sec_raw_log", "Visual_exp_log")])
 
 summary(m <- vglm(Time_head_out_sec_raw ~ Temperature + Time_body_out_sec_raw + Year_invasion + Inv_situation, tobit(Upper = 3000), data = summary_tracking_complete_no_rep))
 
@@ -4613,6 +5291,74 @@ summary(m <- vglm(Visual_exp ~ Temperature + Time_head_out_sec_raw + Year_invasi
 
 
 
+
+
+# log transformed
+
+ggpairs(summary_tracking_complete_no_rep[, c("Time_head_out_sec_raw_log", "Time_body_out_sec_raw_log", "Visual_exp_log")])
+
+summary(m <- vglm(Time_head_out_sec_raw_log ~ Distance_Noahs, tobit(Upper = max(summary_tracking_complete_no_rep$Time_head_out_sec_raw_log)), data = summary_tracking_complete_no_rep))
+
+summary(m <- vglm(Time_body_out_sec_raw_log ~ Distance_Noahs, tobit(Upper = max(summary_tracking_complete_no_rep$Time_body_out_sec_raw_log)), data = summary_tracking_complete_no_rep))
+
+summary(m <- vglm(Visual_exp_log ~ Distance_Noahs, tobit(Lower = 0), data = summary_tracking_complete_no_rep))
+
+b <- coef(m)
+se <- sqrt(diag(vcov(m)))
+
+cbind(LL = b - qnorm(0.975) * se, UL = b + qnorm(0.975) * se)
+
+
+
+summary_tracking_complete_no_rep$yhat <- fitted(m)[,1]
+summary_tracking_complete_no_rep$rr <- resid(m, type = "response")
+summary_tracking_complete_no_rep$rp <- resid(m, type = "pearson")[,1]
+
+par(mfcol = c(2, 3))
+
+with(summary_tracking_complete_no_rep, {
+  plot(yhat, rr, main = "Fitted vs Residuals")
+  qqnorm(rr)
+  plot(yhat, rp, main = "Fitted vs Pearson Residuals")
+  qqnorm(rp)
+  plot(Time_head_out_sec_raw, rp, main = "Actual vs Pearson Residuals")
+  plot(Time_head_out_sec_raw, yhat, main = "Actual vs Fitted")
+})
+
+
+(r <- with(summary_tracking_complete_no_rep, cor(yhat, Time_head_out_sec_raw)))
+
+r^2
+
+
+summary(m <- vglm(Visual_exp ~ Temperature + Time_head_out_sec_raw + Year_invasion + Inv_situation + Acc_time + Arena, tobit(Lower = 0), data = summary_tracking_complete_no_rep))
+
+
+
+
+# by sex
+
+summary(m <- vglm(Time_head_out_sec_raw_log ~ Distance_Noahs, tobit(Upper = max(summary_tracking_complete_no_rep_F$Time_head_out_sec_raw_log)), data = summary_tracking_complete_no_rep_F))
+
+summary(m <- vglm(Time_body_out_sec_raw_log ~ Distance_Noahs, tobit(Upper = max(summary_tracking_complete_no_rep_F$Time_body_out_sec_raw_log)), data = summary_tracking_complete_no_rep_F))
+
+summary(m <- vglm(Visual_exp_log ~ Distance_Noahs, tobit(Lower = 0), data = summary_tracking_complete_no_rep_F))
+
+
+summary(m <- vglm(Time_head_out_sec_raw_log ~ Distance_Noahs, tobit(Upper = max(summary_tracking_complete_no_rep_M$Time_head_out_sec_raw_log)), data = summary_tracking_complete_no_rep_M))
+
+summary(m <- vglm(Time_body_out_sec_raw_log ~ Distance_Noahs, tobit(Upper = max(summary_tracking_complete_no_rep_M$Time_body_out_sec_raw_log)), data = summary_tracking_complete_no_rep_M))
+
+summary(m <- vglm(Visual_exp_log ~ Distance_Noahs, tobit(Lower = 0), data = summary_tracking_complete_no_rep_M))
+
+
+
+
+
+
+
+
+
 #####
 
 
@@ -4622,95 +5368,129 @@ summary(m <- vglm(Visual_exp ~ Temperature + Time_head_out_sec_raw + Year_invasi
 # Head-out
 
 par(mfrow = c(1,2))
-hist((summary_tracking_complete_no_rep$Time_head_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
+hist((summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
 
-curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep$Time_head_out_sec_raw)), sd = sd((summary_tracking_complete_no_rep$Time_head_out_sec_raw))), 
+curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw)), sd = sd((summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw))), 
       col = "blue", lwd = 2, add = TRUE)
 
-plot(density((summary_tracking_complete_no_rep$Time_head_out_sec_raw)), main = "Gráfico de densidad de tus datos")
+plot(density((summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw)), main = "Gráfico de densidad de tus datos")
 
-shapiro.test((summary_tracking_complete_no_rep$Time_head_out_sec_raw))
+shapiro.test((summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw))
 
 # Right censored data, delete censored data
 
-hist((summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
+hist((summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
 
-curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw)), sd = sd((summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw))), 
+curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw)), sd = sd((summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw))), 
       col = "blue", lwd = 2, add = TRUE)
 
-plot(density((summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw)), main = "Gráfico de densidad de tus datos")
+plot(density((summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw)), main = "Gráfico de densidad de tus datos")
 
-shapiro.test((summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw))
+shapiro.test((summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw))
 
 # No normality. log transform data
 
-hist(log(summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
+hist(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
 
-curve(dnorm(x, mean = mean(log(summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw)), sd = sd(log(summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw))), 
+curve(dnorm(x, mean = mean(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw)), sd = sd(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw))), 
       col = "blue", lwd = 2, add = TRUE)
 
-plot(density(log(summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw)), main = "Gráfico de densidad de tus datos")
+plot(density(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw)), main = "Gráfico de densidad de tus datos")
 
-shapiro.test(log(summary_tracking_complete_no_rep_outside$Time_head_out_sec_raw))
+shapiro.test(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw))
+
+# without deleting censored data
+
+hist(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
+
+curve(dnorm(x, mean = mean(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw)), sd = sd(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw))), 
+      col = "blue", lwd = 2, add = TRUE)
+
+plot(density(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw)), main = "Gráfico de densidad de tus datos")
+
+shapiro.test(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw))
 
 
 # Body-out
 
-hist((summary_tracking_complete_no_rep$Time_body_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
+hist((summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
 
-curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep$Time_body_out_sec_raw)), sd = sd((summary_tracking_complete_no_rep$Time_body_out_sec_raw))), 
+curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw)), sd = sd((summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw))), 
       col = "blue", lwd = 2, add = TRUE)
 
-plot(density((summary_tracking_complete_no_rep$Time_body_out_sec_raw)), main = "Gráfico de densidad de tus datos")
+plot(density((summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw)), main = "Gráfico de densidad de tus datos")
 
-shapiro.test((summary_tracking_complete_no_rep$Time_body_out_sec_raw))
+shapiro.test((summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw))
 
 # Right censored data, delete censored data
 
-hist((summary_tracking_complete_no_rep_outside$Time_body_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
+hist((summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
 
-curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_outside$Time_body_out_sec_raw)), sd = sd((summary_tracking_complete_no_rep_outside$Time_body_out_sec_raw))), 
+curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw)), sd = sd((summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw))), 
       col = "blue", lwd = 2, add = TRUE)
 
-plot(density((summary_tracking_complete_no_rep_outside$Time_body_out_sec_raw)), main = "Gráfico de densidad de tus datos")
+plot(density((summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw)), main = "Gráfico de densidad de tus datos")
 
-shapiro.test((summary_tracking_complete_no_rep_outside$Time_body_out_sec_raw))
+shapiro.test((summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw))
 
 # Normality
 
+hist(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
 
-#Visual exploration
-
-hist((summary_tracking_complete_no_rep$Visual_exp), prob = TRUE, main = "Histograma de tus datos")
-
-curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep$Visual_exp)), sd = sd((summary_tracking_complete_no_rep$Visual_exp))), 
+curve(dnorm(x, mean = mean(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw)), sd = sd(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw))), 
       col = "blue", lwd = 2, add = TRUE)
 
-plot(density((summary_tracking_complete_no_rep$Visual_exp)), main = "Gráfico de densidad de tus datos")
+plot(density(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw)), main = "Gráfico de densidad de tus datos")
 
-shapiro.test((summary_tracking_complete_no_rep$Visual_exp))
+shapiro.test(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw))
+
+
+# without deleting censored data
+
+hist(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), prob = TRUE, main = "Histograma de tus datos")
+
+curve(dnorm(x, mean = mean(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw)), sd = sd(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw))), 
+      col = "blue", lwd = 2, add = TRUE)
+
+plot(density(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw)), main = "Gráfico de densidad de tus datos")
+
+shapiro.test(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw))
+
+
+
+# Visual exploration 
+
+
+hist((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp), prob = TRUE, main = "Histograma de tus datos")
+
+curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp)), sd = sd((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp))), 
+      col = "blue", lwd = 2, add = TRUE)
+
+plot(density((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp)), main = "Gráfico de densidad de tus datos")
+
+shapiro.test((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp))
 
 # Left censored data, delete it
 
-hist((summary_tracking_complete_no_rep_outside$Visual_exp), prob = TRUE, main = "Histograma de tus datos")
+hist((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp), prob = TRUE, main = "Histograma de tus datos")
 
-curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_outside$Visual_exp)), sd = sd((summary_tracking_complete_no_rep_outside$Visual_exp))), 
+curve(dnorm(x, mean = mean((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp)), sd = sd((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp))), 
       col = "blue", lwd = 2, add = TRUE)
 
-plot(density((summary_tracking_complete_no_rep_outside$Visual_exp)), main = "Gráfico de densidad de tus datos")
+plot(density((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp)), main = "Gráfico de densidad de tus datos")
 
-shapiro.test((summary_tracking_complete_no_rep_outside$Visual_exp))
+shapiro.test((summary_tracking_complete_no_rep_outside_noeggs$Visual_exp))
 
 # No normality, log transoform
 
-hist(log(summary_tracking_complete_no_rep_outside$Visual_exp), prob = TRUE, main = "Histograma de tus datos")
+hist(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp), prob = TRUE, main = "Histograma de tus datos")
 
-curve(dnorm(x, mean = mean(log(summary_tracking_complete_no_rep_outside$Visual_exp)), sd = sd(log(summary_tracking_complete_no_rep_outside$Visual_exp))), 
+curve(dnorm(x, mean = mean(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp)), sd = sd(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp))), 
       col = "blue", lwd = 2, add = TRUE)
 
-plot(density(log(summary_tracking_complete_no_rep_outside$Visual_exp)), main = "Gráfico de densidad de tus datos")
+plot(density(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp)), main = "Gráfico de densidad de tus datos")
 
-shapiro.test(log(summary_tracking_complete_no_rep_outside$Visual_exp))
+shapiro.test(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp))
 
 
 
@@ -4743,6 +5523,912 @@ pairs(~ res_head_svl + res_body_svl + res_visual_svl,
 
 #####
 
+
+
+# Part 11: New analysis 
+##### 
+
+# Part 11.1: Linear models
+##### 
+
+# Correlation between variables
+
+variables_lm <- summary_tracking_complete_no_rep_noeggs[, c("Distance_Noahs", "Year_invasion", "SVL", "Condition", "Temperature", "R_H")]
+
+variables_lm$SVL <- log(variables_lm$SVL)
+
+cor(variables_lm)
+
+corrplot(cor(variables_lm), method="color")
+
+
+##### 
+
+
+
+
+
+# Head-out
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Year_invasion, y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Year of invasion") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Distance_Noahs, y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Distance to Noah's garden") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Temperature, y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Temperature") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = log(SVL), y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("log(SVL)") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Condition, y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Condition") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+
+summary(lm(log(Time_head_out_sec_raw) ~ log(Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_noeggs))
+
+
+head_out_model <- lm(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_noeggs)
+
+summary(lm(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_noeggs))
+
+
+ols_step_best_subset(head_out_model)
+
+ols_step_forward_p(head_out_model)
+
+ols_step_backward_p(head_out_model)
+
+
+# with pregnant females
+head_out_model <- lm(log(summary_tracking_complete_no_rep$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep$SVL) + Temperature , data = summary_tracking_complete_no_rep)
+
+summary(lm(log(summary_tracking_complete_no_rep$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep$SVL) + Temperature , data = summary_tracking_complete_no_rep))
+
+
+ols_step_best_subset(head_out_model)
+
+ols_step_forward_p(head_out_model)
+
+ols_step_backward_p(head_out_model)
+
+
+# Body-out
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Year_invasion, y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Year of invasion") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Distance_Noahs, y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Distance to Noah's garden") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Temperature, y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Temperature") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = log(SVL), y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("log(SVL)") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Condition, y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Condition") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+
+summary(lm(log(Time_body_out_sec_raw) ~ log(Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_noeggs))
+
+
+body_out_model <- lm(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_noeggs)
+
+summary(lm(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_noeggs))
+
+
+ols_step_best_subset(body_out_model)
+
+ols_step_forward_p(body_out_model)
+
+ols_step_backward_p(body_out_model)
+
+# with pregnant females
+
+body_out_model <- lm(log(summary_tracking_complete_no_rep$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep$SVL) + Temperature , data = summary_tracking_complete_no_rep)
+
+summary(lm(log(summary_tracking_complete_no_rep$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep$SVL) + Temperature , data = summary_tracking_complete_no_rep))
+
+
+ols_step_best_subset(body_out_model)
+
+ols_step_forward_p(body_out_model)
+
+ols_step_backward_p(body_out_model)
+
+
+
+
+# Visual exploration
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Year_invasion, y = log(Visual_exp), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Year of invasion") + 
+  ylab("log(Visual exploration)") + 
+  theme_minimal()
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Distance_Noahs, y = log(Visual_exp), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Distance to Noah's garden") + 
+  ylab("log(Visual exploration)") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Temperature, y = log(Visual_exp), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Temperature") + 
+  ylab("log(Visual exploration)") + 
+  theme_minimal()
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = log(SVL), y = log(Visual_exp), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("log(SVL)") + 
+  ylab("log(Visual exploration)") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Condition, y = log(Visual_exp), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Condition") + 
+  ylab("log(Visual exploration)") + 
+  theme_minimal()
+
+
+
+summary(lm(log(Visual_exp) ~ (Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs))
+
+
+visual_exp_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
+
+summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
+
+
+ols_step_best_subset(visual_exp_model)
+
+ols_step_forward_p(visual_exp_model)
+
+ols_step_backward_p(visual_exp_model)
+
+
+# significant
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Distance_Noahs, y = log(Visual_exp))) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Distance to Noah's garden") + 
+  ylab("log(Visual exploration)") + 
+  theme_minimal()
+
+
+# with pregnant females 
+
+visual_exp_model <- lm(log(summary_tracking_complete_no_rep_outside$Visual_exp) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside)
+
+summary(lm(log(summary_tracking_complete_no_rep_outside$Visual_exp) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside))
+
+
+ols_step_best_subset(visual_exp_model)
+
+ols_step_forward_p(visual_exp_model)
+
+ols_step_backward_p(visual_exp_model)
+
+
+
+
+
+# head-out and body-out only the ones that got out
+# Head-out
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Year_invasion, y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Year of invasion") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Distance_Noahs, y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Distance to Noah's garden") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Temperature, y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Temperature") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = log(SVL), y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("log(SVL)") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Condition, y = log(Time_head_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Condition") + 
+  ylab("log(Time to head-out)") + 
+  theme_minimal()
+
+
+
+summary(lm(log(Time_head_out_sec_raw) ~ log(Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs))
+
+
+head_out_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
+
+summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
+
+
+ols_step_best_subset(head_out_model)
+
+ols_step_forward_p(head_out_model)
+
+ols_step_backward_p(head_out_model)
+
+
+
+# Body-out
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Year_invasion, y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Year of invasion") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Distance_Noahs, y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Distance to Noah's garden") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Temperature, y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Temperature") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = log(SVL), y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("log(SVL)") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+
+ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Condition, y = log(Time_body_out_sec_raw), col = Sex)) +
+  geom_point() + 
+  geom_smooth(method=lm, se = T) + 
+  xlab("Condition") + 
+  ylab("log(Time to body-out)") + 
+  theme_minimal()
+
+
+
+summary(lm(log(Time_body_out_sec_raw) ~ (Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_outside))
+
+
+body_out_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
+
+summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
+
+
+ols_step_best_subset(body_out_model)
+
+ols_step_forward_p(body_out_model)
+
+ols_step_backward_p(body_out_model)
+
+
+
+##### 
+
+# Part 11.2: Dealing with censored data
+#####
+
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(log(Time_head_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(log(Time_head_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs, 
+                   left = -Inf, right = log(3000))
+summary(fit.cen)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(log(Time_head_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep$Time_head_out_sec_raw[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw & summary_tracking_complete_no_rep$Time_head_out_sec_raw < 3000] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw & summary_tracking_complete_no_rep$Time_head_out_sec_raw < 3000])
+summary(fit.detect)
+
+fit.detect <- lm(log(Time_head_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_outside_noeggs)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_noeggs$Distance_Noahs, log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw), breaks = 100, main = 'Censored Data')
+
+
+# Body out
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(log(Time_body_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(log(Time_body_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs, 
+                   left = -Inf, right = log(3000))
+summary(fit.cen)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(log(Time_body_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep$Time_body_out_sec_raw[0 <= summary_tracking_complete_no_rep$Time_body_out_sec_raw & summary_tracking_complete_no_rep$Time_body_out_sec_raw < 3000] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Time_body_out_sec_raw & summary_tracking_complete_no_rep$Time_body_out_sec_raw < 3000])
+summary(fit.detect)
+
+fit.detect <- lm(log(Time_body_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_outside_noeggs)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_noeggs$Distance_Noahs, log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), breaks = 100, main = 'Censored Data')
+
+
+
+
+
+# Visual exploration
+# Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
+plot(log1p(Visual_exp) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+
+# Censored regression
+fit.cen <- censReg(log1p(Visual_exp) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs, 
+                   left = 0, right = Inf)
+summary(fit.cen)
+
+# Get the standard error. It is pretty big (more than a thousand)
+coef(fit.cen, logSigma = FALSE)
+
+
+# Fit a line using OLS regression (linear regression)
+fit.OLS <- lm(log1p(Visual_exp) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs)
+summary(fit.OLS)
+
+# fit regression only of non-censored data
+fit.detect <- lm(summary_tracking_complete_no_rep$Visual_exp[0 <= summary_tracking_complete_no_rep$Visual_exp & summary_tracking_complete_no_rep$Visual_exp < 3000] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Visual_exp & summary_tracking_complete_no_rep$Visual_exp < 3000])
+summary(fit.detect)
+
+fit.detect <- lm(log1p(Visual_exp) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_outside_noeggs)
+
+summary(fit.detect)
+
+# Table with slope estimates of each linear fit
+rbind(
+  Censored = c(coef(fit.cen)[1], coef(fit.cen)[2]),
+  OLS_Full = coef(fit.OLS),
+  OLS_Detects = coef(fit.detect)
+) %>% round(4)
+
+# Plot the results
+lineplot <- function() {
+  
+  # Add lines
+  abline(coef(fit.cen)[1:2], col = 'Red', lwd = 2)
+  abline(coef(fit.OLS), col = 'Blue', lty = 2, lwd = 2)
+  abline(coef(fit.detect), col = rgb(0.2, 0.6, 0.2), lty = 3, lwd = 2)
+  
+  # Add legend
+  legend(
+    "topleft",
+    legend = c(
+      "Censored",
+      "OLS",
+      "OLS Detects"
+    ),
+    lwd = 3 * par("cex"),
+    col = c("red", "blue", "green"),
+    lty = c(1, 2, 3),
+    text.font = 1, bty = "n",
+    pt.cex = 1, cex = 0.8, y.intersp = 1.3
+  )
+}
+
+par(mfrow = c(1, 2))
+
+plot(summary_tracking_complete_no_rep_noeggs$Distance_Noahs, log1p(summary_tracking_complete_no_rep_noeggs$Visual_exp), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+lineplot()
+
+hist(log1p(summary_tracking_complete_no_rep_noeggs$Visual_exp), breaks = 100, main = 'Censored Data')
+
+
+
+
+
+
+#####
+
+
+# Part 11.3: Survival analysis
+#####
+
+# Raw data
+# We add columns for saying if data is censored (0) or the event has happened within the time frame (1)
+summary_tracking_complete_no_rep_noeggs <- add_column(summary_tracking_complete_no_rep_noeggs, Head_out_01 = NA, .after = "Time_head_out_sec_raw")
+
+
+summary_tracking_complete_no_rep_noeggs <- add_column(summary_tracking_complete_no_rep_noeggs, Body_out_01 = NA, .after = "Time_body_out_sec_raw")
+
+
+# 1 for event (head-out/body-out) and 0 for censored data
+for(i in 1:nrow(summary_tracking_complete_no_rep_noeggs)){
+  
+  if(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw[i] == 3000){
+    
+    summary_tracking_complete_no_rep_noeggs$Head_out_01[i] <- 0
+    
+  } else {
+    
+    summary_tracking_complete_no_rep_noeggs$Head_out_01[i] <- 1
+    
+  }
+  
+  if(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw[i] == 3000){
+    
+    summary_tracking_complete_no_rep_noeggs$Body_out_01[i] <- 0
+    
+  } else {
+    
+    summary_tracking_complete_no_rep_noeggs$Body_out_01[i] <- 1
+    
+  }
+  
+}
+
+# + indicates censored data
+Surv(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw, summary_tracking_complete_no_rep_noeggs$Head_out_01)
+
+
+survival_curve_1 <- survfit(Surv(Time_head_out_sec_raw, Head_out_01) ~ 1,
+                            data = summary_tracking_complete_no_rep_noeggs)
+
+str(survival_curve_1)
+
+plot(survival_curve_1)
+
+survfit2(Surv(Time_head_out_sec_raw, Head_out_01) ~ 1,
+         data = summary_tracking_complete_no_rep_noeggs) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Time (s)",
+    y = "Overall head-out probability"
+  ) +
+  add_confidence_interval() +
+  add_risktable()
+
+# Probability head-out within 30 min = 1 - 0.318 = 0.682
+summary(survfit(Surv(Time_head_out_sec_raw, Head_out_01) ~ 1,
+                data = summary_tracking_complete_no_rep_noeggs), times = 1800)
+
+# Table that gives us the probability of an event depending on if we use censored data or not
+survfit(Surv(Time_head_out_sec_raw, Head_out_01) ~ 1,
+        data = summary_tracking_complete_no_rep_noeggs) %>% 
+  tbl_survfit(
+    times = 1800,
+    label_header = "**30 min head-out (95% CI)**"
+  )
+
+# Head-out probability between front and core
+survfit2(Surv(Time_head_out_sec_raw, Head_out_01) ~ Inv_situation,
+         data = summary_tracking_complete_no_rep_noeggs) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Time (s)",
+    y = "Overall head-out probability"
+  ) +
+  add_confidence_interval() +
+  add_risktable()
+
+fit_head_out <- survfit(Surv(Time_head_out_sec_raw, Head_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep_noeggs)
+
+
+ggsurvplot(fit_head_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF"),
+           surv.median.line = "hv",
+           legend.labs = c("CORE", "FRONT"))
+
+
+# Body-out probability between front and core
+survfit2(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation,
+         data = summary_tracking_complete_no_rep_noeggs) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Time (s)",
+    y = "Overall Body-out probability"
+  ) +
+  add_confidence_interval() +
+  add_risktable()
+
+
+fit_body_out <- survfit(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep_noeggs)
+
+
+ggsurvplot(fit_body_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF"),
+           surv.median.line = "hv",
+           legend.labs = c("CORE", "FRONT"))
+
+
+
+# Smooth survival plot (general)
+sm.options(
+  list(
+    xlab = "Invasion year",
+    ylab = "Head-out")
+)
+
+sm.survival(
+  x = summary_tracking_complete_no_rep_noeggs$Distance_Noahs,
+  y = summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw,
+  status = summary_tracking_complete_no_rep_noeggs$Head_out_01,
+  h = sd(summary_tracking_complete_no_rep_noeggs$Distance_Noahs) / nrow(summary_tracking_complete_no_rep_noeggs)^(-1/4)
+)
+
+sm.options(
+  list(
+    xlab = "Invasion year",
+    ylab = "Body-out")
+)
+
+sm.survival(
+  x = summary_tracking_complete_no_rep_noeggs$Distance_Noahs,
+  y = summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw,
+  status = summary_tracking_complete_no_rep_noeggs$Body_out_01,
+  h = sd(summary_tracking_complete_no_rep_noeggs$Distance_Noahs) / nrow(summary_tracking_complete_no_rep_noeggs)^(-1/4)
+)
+
+
+
+
+
+# Log transformed data
+
+summary_tracking_complete_no_rep_noeggs$log_head_out <- log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw)
+
+summary_tracking_complete_no_rep_noeggs$log_body_out <- log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw)
+
+
+# 1 for event (head-out/body-out) and 0 for censored data
+for(i in 1:nrow(summary_tracking_complete_no_rep_noeggs)){
+  
+  if(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw[i] == 3000){
+    
+    summary_tracking_complete_no_rep_noeggs$Head_out_01[i] <- 0
+    
+  } else {
+    
+    summary_tracking_complete_no_rep_noeggs$Head_out_01[i] <- 1
+    
+  }
+  
+  if(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw[i] == 3000){
+    
+    summary_tracking_complete_no_rep_noeggs$Body_out_01[i] <- 0
+    
+  } else {
+    
+    summary_tracking_complete_no_rep_noeggs$Body_out_01[i] <- 1
+    
+  }
+  
+}
+
+
+# + indicates censored data
+Surv(summary_tracking_complete_no_rep_noeggs$log_head_out, summary_tracking_complete_no_rep_noeggs$Head_out_01)
+
+
+survival_curve_1 <- survfit(Surv(log_head_out, Head_out_01) ~ 1,
+                            data = summary_tracking_complete_no_rep_noeggs)
+
+str(survival_curve_1)
+
+plot(survival_curve_1)
+
+survfit2(Surv(log_head_out, Head_out_01) ~ 1,
+         data = summary_tracking_complete_no_rep_noeggs) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Time (s)",
+    y = "Overall head-out probability"
+  ) +
+  add_confidence_interval() +
+  add_risktable()
+
+ # Probability head-out within 30 min = 1 - 0.318 = 0.682
+summary(survfit(Surv(log_head_out, Head_out_01) ~ 1,
+                data = summary_tracking_complete_no_rep_noeggs), times = log(1800))
+
+# Table that gives us the probability of an event depending on if we use censored data or not
+survfit(Surv(log_head_out, Head_out_01) ~ 1,
+        data = summary_tracking_complete_no_rep_noeggs) %>% 
+  tbl_survfit(
+    times = log(1800),
+    label_header = "**30 min head-out (95% CI)**"
+  )
+
+# Head-out probability between front and core
+survfit2(Surv(log_head_out, Head_out_01) ~ Inv_situation,
+         data = summary_tracking_complete_no_rep_noeggs) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Time (s)",
+    y = "Overall head-out probability"
+  ) +
+  add_confidence_interval() +
+  add_risktable()
+
+fit_head_out <- survfit(Surv(log_head_out, Head_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep_noeggs)
+
+
+ggsurvplot(fit_head_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF"),
+           surv.median.line = "hv",
+           legend.labs = c("CORE", "FRONT"))
+
+
+# Body-out probability between front and core
+survfit2(Surv(log_body_out, Body_out_01) ~ Inv_situation,
+         data = summary_tracking_complete_no_rep_noeggs) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Time (s)",
+    y = "Overall Body-out probability"
+  ) +
+  add_confidence_interval() +
+  add_risktable()
+
+
+fit_body_out <- survfit(Surv(log_body_out, Body_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep_noeggs)
+
+
+ggsurvplot(fit_body_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF"),
+           surv.median.line = "hv",
+           legend.labs = c("CORE", "FRONT"))
+
+
+
+# Smooth survival plot (general)
+sm.options(
+  list(
+    xlab = "Invasion year",
+    ylab = "Head-out")
+)
+
+sm.survival(
+  x = summary_tracking_complete_no_rep_noeggs$Distance_Noahs,
+  y = summary_tracking_complete_no_rep_noeggs$log_head_out,
+  status = summary_tracking_complete_no_rep_noeggs$Head_out_01,
+  h = sd(summary_tracking_complete_no_rep_noeggs$Distance_Noahs) / nrow(summary_tracking_complete_no_rep_noeggs)^(-1/4)
+)
+
+sm.options(
+  list(
+    xlab = "Invasion year",
+    ylab = "Body-out")
+)
+
+sm.survival(
+  x = summary_tracking_complete_no_rep_noeggs$Distance_Noahs,
+  y = summary_tracking_complete_no_rep_noeggs$log_head_out,
+  status = summary_tracking_complete_no_rep_noeggs$Body_out_01,
+  h = sd(summary_tracking_complete_no_rep_noeggs$Distance_Noahs) / nrow(summary_tracking_complete_no_rep_noeggs)^(-1/4)
+)
+
+
+
+# Cox-hazard model
+
+# raw head-out
+res.cox_head <- coxph(Surv(Time_head_out_sec_raw, Head_out_01) ~ Distance_Noahs + log(SVL) + Temperature + Sex, data = summary_tracking_complete_no_rep_noeggs)
+
+res.cox_head
+
+summary(res.cox_head)
+
+# log head-out
+res.cox_loghead <- coxph(Surv(log_head_out, Head_out_01) ~ Distance_Noahs + log(SVL) + Temperature + Sex, data = summary_tracking_complete_no_rep_noeggs)
+
+res.cox_loghead
+
+summary(res.cox_loghead)
+
+
+# raw body-out
+res.cox_body <- coxph(Surv(Time_body_out_sec_raw, Body_out_01) ~ Distance_Noahs + log(SVL) + Temperature + Sex, data = summary_tracking_complete_no_rep_noeggs)
+
+res.cox_body
+
+summary(res.cox_body)
+
+# log body-out
+res.cox_logbody <- coxph(Surv(log_head_out, Body_out_01) ~ Distance_Noahs + log(SVL) + Temperature + Sex, data = summary_tracking_complete_no_rep_noeggs)
+
+res.cox_logbody
+
+summary(res.cox_logbody)
 
 
 
