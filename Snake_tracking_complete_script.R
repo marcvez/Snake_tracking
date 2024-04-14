@@ -3929,7 +3929,7 @@ duplicated(names(Snake_array_dupl[1,1,]))
 
 
 # How much time do we want to analyse
-study_time <- 600
+study_time <- 1800
 
 # Create data frame
 behaviour_df <- as.data.frame(matrix(data = NA, ncol = 13, nrow = length(names(Snake_array_dupl[1,1,]))))
@@ -3984,47 +3984,25 @@ for (i in 1:length(names(Snake_array_dupl[1,1,]))){
 behaviour_df <- behaviour_df %>% drop_na(Snake_ID)
 
 
-sum(behaviour_df[2,2:8])
-
-
-
-
-
-
-
+sum(behaviour_df[19,2:8])
 
 
 
 
 # Behaviour
 # Select columns of interest for stacked behaviour plot
-stacked_behaviour <- summary_tracking_complete_no_rep[, c("Snake_ID", "time_hidden_bf_head_out", "total_time_hidden", "beh_moving", "beh_exploring_wall", "beh_immobile_exposed", "beh_head-out", "beh_hiding-head-out")]
-
-# New variable: hidden time after first head-out
-stacked_behaviour$`beh_hidden_after_first_head-out` <- stacked_behaviour$total_time_hidden - stacked_behaviour$time_hidden_bf_head_out
-
-# We delete this intermediate variable used to calculate previous variable
-stacked_behaviour <- subset(stacked_behaviour, select = -total_time_hidden)
-
-# Change column names
-colnames(stacked_behaviour) <- c("Snake_ID", "Hidden before head-out", "Exploring", "Exploring wall", "Immobile exposed", "Head-out", "Hidden in corner", "Hidden after first head-out")
+stacked_behaviour <- behaviour_df[, c("Snake_ID", "headout_bf_bodyout", "headout_after_bodyout", "exploring_arena", "exploring_wall", "immobile_exposed", "hiding", "hiding_corner")]
 
 # Alternative data frame with invasion situation
-stacked_behaviour_treatment <- stacked_behaviour
-
-stacked_behaviour_treatment$treatment <- summary_tracking_complete_no_rep$Inv_situation
-
-stacked_behaviour_treatment$year <- summary_tracking_complete_no_rep$Year_invasion
-
-stacked_behaviour_treatment$distance <- summary_tracking_complete_no_rep$Distance_Noahs
+stacked_behaviour_treatment <- behaviour_df
 
 # Snake_ID ordered by year of invasion
-snakes_order_by_year <- summary_tracking_complete_no_rep[, c("Snake_ID", "Year_invasion")]
+snakes_order_by_year <- behaviour_df[, c("Snake_ID", "year")]
 
-snakes_order_by_year <- snakes_order_by_year[order(snakes_order_by_year$Year_invasion, decreasing = FALSE), ]
+snakes_order_by_year <- snakes_order_by_year[order(snakes_order_by_year$year, decreasing = FALSE), ]
 
 # Long format
-stacked_behaviour_long <- pivot_longer(stacked_behaviour, cols = c("Hidden before head-out", "Exploring", "Exploring wall", "Immobile exposed", "Head-out", "Hidden in corner", "Hidden after first head-out"), names_to = "Behaviour", values_to = "Percentage")
+stacked_behaviour_long <- pivot_longer(stacked_behaviour, cols = c("headout_bf_bodyout", "headout_after_bodyout", "exploring_arena", "exploring_wall", "immobile_exposed", "hiding", "hiding_corner"), names_to = "Behaviour", values_to = "Percentage")
 
 # Percentage of each behaviour
 stacked_behaviour_long <- stacked_behaviour_long %>%
@@ -4037,7 +4015,7 @@ stacked_behaviour_long <- stacked_behaviour_long %>%
 stacked_behaviour_long$Snake_ID <- factor(stacked_behaviour_long$Snake_ID, levels = snakes_order_by_year$Snake_ID)
 
 # Order behaviour variables
-stacked_behaviour_long$Behaviour <- factor(stacked_behaviour_long$Behaviour, levels = c("Immobile exposed", "Exploring wall", "Exploring", "Head-out", "Hidden in corner", "Hidden after first head-out", "Hidden before head-out"))
+stacked_behaviour_long$Behaviour <- factor(stacked_behaviour_long$Behaviour, levels = c("immobile_exposed", "exploring_wall", "exploring_arena",  "headout_after_bodyout", "headout_bf_bodyout", "hiding_corner", "hiding"))
 
 # Colors for behaviours
 beh_colors <- c(viridis(7)[7], viridis(7)[6], viridis(7)[5], viridis(7)[4], viridis(7)[3], viridis(7)[2], viridis(7)[1])
@@ -4045,7 +4023,7 @@ beh_colors <- c(viridis(7)[7], viridis(7)[6], viridis(7)[5], viridis(7)[4], viri
 # Plot
 ggplot(stacked_behaviour_long, aes(x = Snake_ID, y = Percentage, fill = Behaviour)) +
   geom_bar(stat = "identity", position = "stack") +
-  labs(x = "Snake ID", y = "% behaviours during 50 min test", fill = "Behaviours") +
+  labs(x = "Snake ID", y = "% behaviours during 30 min test", fill = "Behaviours") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10), 
         legend.text = element_text(size = 10), 
         axis.title.x = element_text(size = 15),  
@@ -4055,32 +4033,214 @@ ggplot(stacked_behaviour_long, aes(x = Snake_ID, y = Percentage, fill = Behaviou
   scale_fill_manual(values = beh_colors)
 
 
+# order by distance to noahs garden
+
+# Snake_ID ordered by year of invasion
+snakes_order_by_distance <- behaviour_df[, c("Snake_ID", "distance")]
+
+snakes_order_by_distance <- snakes_order_by_distance[order(snakes_order_by_distance$distance, decreasing = FALSE), ]
+
+# Long format
+stacked_behaviour_long <- pivot_longer(stacked_behaviour, cols = c("headout_bf_bodyout", "headout_after_bodyout", "exploring_arena", "exploring_wall", "immobile_exposed", "hiding", "hiding_corner"), names_to = "Behaviour", values_to = "Percentage")
+
+# Percentage of each behaviour
+stacked_behaviour_long <- stacked_behaviour_long %>%
+  group_by(Snake_ID) %>%
+  mutate(Percentage_total = sum(Percentage)) %>%
+  ungroup() %>%
+  mutate(Percentage = Percentage / Percentage_total * 100)
+
+# Order Snake ID by year of invasion
+stacked_behaviour_long$Snake_ID <- factor(stacked_behaviour_long$Snake_ID, levels = snakes_order_by_distance$Snake_ID)
+
+# Order behaviour variables
+stacked_behaviour_long$Behaviour <- factor(stacked_behaviour_long$Behaviour, levels = c("immobile_exposed", "exploring_wall", "exploring_arena",  "headout_after_bodyout", "headout_bf_bodyout", "hiding_corner", "hiding"))
+
+# Colors for behaviours
+beh_colors <- c(viridis(7)[7], viridis(7)[6], viridis(7)[5], viridis(7)[4], viridis(7)[3], viridis(7)[2], viridis(7)[1])
+
+# Plot
+ggplot(stacked_behaviour_long, aes(x = Snake_ID, y = Percentage, fill = Behaviour)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(x = "Snake ID", y = "% behaviours during 10 min test", fill = "Behaviours") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10), 
+        legend.text = element_text(size = 10), 
+        axis.title.x = element_text(size = 15),  
+        axis.title.y = element_text(size = 15),
+        axis.text.y = element_text(size = 10), 
+        legend.title = element_text(size = 15)) +
+  scale_fill_manual(values = beh_colors)
+
+
+# ordered by svl
+
+# Snake_ID ordered by year of invasion
+snakes_order_by_svl <- behaviour_df[, c("Snake_ID", "SVL")]
+
+snakes_order_by_svl <- snakes_order_by_svl[order(snakes_order_by_svl$SVL, decreasing = FALSE), ]
+
+# Long format
+stacked_behaviour_long <- pivot_longer(stacked_behaviour, cols = c("headout_bf_bodyout", "headout_after_bodyout", "exploring_arena", "exploring_wall", "immobile_exposed", "hiding", "hiding_corner"), names_to = "Behaviour", values_to = "Percentage")
+
+# Percentage of each behaviour
+stacked_behaviour_long <- stacked_behaviour_long %>%
+  group_by(Snake_ID) %>%
+  mutate(Percentage_total = sum(Percentage)) %>%
+  ungroup() %>%
+  mutate(Percentage = Percentage / Percentage_total * 100)
+
+# Order Snake ID by year of invasion
+stacked_behaviour_long$Snake_ID <- factor(stacked_behaviour_long$Snake_ID, levels = snakes_order_by_svl$Snake_ID)
+
+# Order behaviour variables
+stacked_behaviour_long$Behaviour <- factor(stacked_behaviour_long$Behaviour, levels = c("immobile_exposed", "exploring_wall", "exploring_arena",  "headout_after_bodyout", "headout_bf_bodyout", "hiding_corner", "hiding"))
+
+# Colors for behaviours
+beh_colors <- c(viridis(7)[7], viridis(7)[6], viridis(7)[5], viridis(7)[4], viridis(7)[3], viridis(7)[2], viridis(7)[1])
+
+# Plot
+ggplot(stacked_behaviour_long, aes(x = Snake_ID, y = Percentage, fill = Behaviour)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(x = "Snake ID", y = "% behaviours during 10 min test", fill = "Behaviours") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10), 
+        legend.text = element_text(size = 10), 
+        axis.title.x = element_text(size = 15),  
+        axis.title.y = element_text(size = 15),
+        axis.text.y = element_text(size = 10), 
+        legend.title = element_text(size = 15)) +
+  scale_fill_manual(values = beh_colors)
+
+
+
+
+
+
+
 # Area
+
+# In contrast with behaviour, were we wanted to know how much time did each snake spend doing head-out before and after body out, for area, we are going to record the area used only after body out, because if we recorded the behaviour after head-out, initial refuge area would have bigger numbers. We want to know what areas did the snake visit after exiting the refuge, not taking into account the initial visual exploration that snakes performed during head-out before body-out
+
+
+Snake_array_dupl <- Snake_array
+
+# No repeatability filter
+snake_id <- names(Snake_array[1,1,])
+
+duplicated(snake_id)
+
+dupl_positions <- array(data = NA)
+
+a <- 1
+
+for (i in 1:length(snake_id)){
+  
+  if(duplicated(snake_id)[i] == FALSE){
+    
+    
+  } else {
+    
+    dupl_positions[a] <- i
+    
+    a <- a + 1
+    
+  }
+  
+}
+
+# Final data frame without duplicates (repeatability)
+Snake_array_dupl <- Snake_array_dupl[, , -dupl_positions]
+
+duplicated(names(Snake_array_dupl[1,1,]))
+
+
+# How much time do we want to analyse
+study_time <- 1800
+
+
+
+# Create data frame
+area_df <- as.data.frame(matrix(data = NA, ncol = 14, nrow = length(names(Snake_array_dupl[1,1,]))))
+
+# Column names
+colnames(area_df) <- c("Snake_ID", "time_central_area", "time_intermediate_area", "time_refuge_area_1", "time_refuge_area_2", "time_initial_refuge", "time_distant_wall", "time_lateral_1", "time_lateral_2", "year", "distance", "Sex", "SVL", "treatment")
+
+for (i in 1:length(names(Snake_array_dupl[1,1,]))){
+  
+  
+  if(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time <= 3000){
+    
+    
+    area_df$Snake_ID[i] <- summary_tracking_complete_no_rep$Snake_ID[i]
+    
+    area_df$time_central_area[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 13, i] == "Central area"))
+    
+    area_df$time_intermediate_area[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 13, i] == "Intermediate area"))
+    
+    area_df$time_refuge_area_1[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 13, i] == "Refuge area 1"))
+    
+    area_df$time_refuge_area_2[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 13, i] == "Refuge area 2"))
+    
+    area_df$time_initial_refuge[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 13, i] == "Initial refuge"))
+    
+    area_df$time_distant_wall[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 13, i] == "Distant wall"))
+    
+    area_df$time_lateral_1[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 13, i] == "Lateral 1"))
+    
+    area_df$time_lateral_2[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 13, i] == "Lateral 2"))
+    
+    area_df$year[i] <- summary_tracking_complete_no_rep$Year_invasion[i]
+    
+    area_df$distance[i] <- summary_tracking_complete_no_rep$Distance_Noahs[i]
+    
+    area_df$Sex[i] <- summary_tracking_complete_no_rep$Sex[i]
+    
+    area_df$SVL[i] <- summary_tracking_complete_no_rep$SVL[i]
+    
+    area_df$treatment[i] <- summary_tracking_complete_no_rep$Inv_situation[i]
+    
+    
+  } else {
+    
+    
+  }
+  
+}
+
+
+area_df <- area_df %>% drop_na(Snake_ID)
+
+
 #Select columns
-stacked_area <- summary_tracking_complete_no_rep[, c("Snake_ID", "time_central_area", "time_intermediate_area", "time_refuge_area_1", "time_refuge_area_2", "time_initial_refuge", "time_distant_wall", "time_lateral_1", "time_lateral_2", "time_hidden_bf_head_out", "total_time_hidden")]
+stacked_area <- area_df[, c("Snake_ID", "time_central_area", "time_intermediate_area", "time_refuge_area_1", "time_refuge_area_2", "time_initial_refuge", "time_distant_wall", "time_lateral_1", "time_lateral_2")]
+
+# Snake_ID ordered by year of invasion
+snakes_order_by_year <- area_df[, c("Snake_ID", "year")]
+
+snakes_order_by_year <- snakes_order_by_year[order(snakes_order_by_year$year, decreasing = FALSE), ]
 
 # New variables
 stacked_area$refuge_area <- stacked_area$time_refuge_area_1 + stacked_area$time_refuge_area_2
 
 stacked_area$over_lateral <- stacked_area$time_lateral_1 + stacked_area$time_lateral_2
 
-stacked_area$`beh_hidden_after_first_head-out` <- stacked_area$total_time_hidden - stacked_area$time_hidden_bf_head_out
-
-# We delete theese intermediate variables used to calculate previous variables
-stacked_area <- subset(stacked_area, select = -c(total_time_hidden, time_refuge_area_1, time_refuge_area_2, time_lateral_1, time_lateral_2))
-
-# Change column names
-colnames(stacked_area) <- c("Snake_ID", "Central area", "Intermediate area", "Initial refuge", "Distant wall", "Hidden before head-out", "Refuge area", "Over lateral refuge", "Head-out after head-out")
+# We delete these intermediate variables used to calculate previous variables
+stacked_area <- subset(stacked_area, select = -c(time_refuge_area_1, time_refuge_area_2, time_lateral_1, time_lateral_2))
 
 # Alternative data frame with invasion situation
 stacked_area_treatment <- stacked_area
 
-stacked_area_treatment$treatment <- summary_tracking_complete_no_rep$Inv_situation
+stacked_area_treatment$treatment <- area_df$treatment
 
-stacked_area_treatment$year <- summary_tracking_complete_no_rep$Year_invasion
+stacked_area_treatment$year <- area_df$year
+
+stacked_area_treatment$SVL <- area_df$SVL
+
+stacked_area_treatment$distance <- area_df$distance
+
+stacked_area_treatment$sex <- area_df$Sex
 
 # Long format
-stacked_area_long <- pivot_longer(stacked_area, cols = c("Central area", "Intermediate area", "Initial refuge", "Distant wall", "Hidden before head-out", "Refuge area", "Over lateral refuge", "Head-out after head-out"), names_to = "Area", values_to = "Percentage")
+stacked_area_long <- pivot_longer(stacked_area, cols = c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral"), names_to = "Area", values_to = "Percentage")
 
 # Percentage of each behaviour
 stacked_area_long <- stacked_area_long %>%
@@ -4093,11 +4253,11 @@ stacked_area_long <- stacked_area_long %>%
 stacked_area_long$Snake_ID <- factor(stacked_area_long$Snake_ID, levels = snakes_order_by_year$Snake_ID)
 
 # Order behaviour variables
-stacked_area_long$Area <- factor(stacked_area_long$Area, levels = c("Central area", "Intermediate area", "Initial refuge", "Distant wall", "Refuge area", "Over lateral refuge", "Head-out after head-out", "Hidden before head-out"))
+stacked_area_long$Area <- factor(stacked_area_long$Area, levels = c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral"))
 
 
 # Colors for behaviours
-area_colors <- c(viridis(8)[8], viridis(8)[7], viridis(8)[6], viridis(8)[5], viridis(8)[4], viridis(8)[3], viridis(8)[2], viridis(8)[1])
+area_colors <- c(viridis(6)[6], viridis(6)[5], viridis(6)[4], viridis(6)[3], viridis(6)[2], viridis(6)[1])
 
 # Plot
 ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
@@ -4110,6 +4270,98 @@ ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
         axis.text.y = element_text(size = 10), 
         legend.title = element_text(size = 15)) +
   scale_fill_manual(values = area_colors)
+
+
+
+
+# ordered by distance to Noah's garden
+
+
+# Snake_ID ordered by year of invasion
+snakes_order_by_distance <- area_df[, c("Snake_ID", "distance")]
+
+snakes_order_by_distance <- snakes_order_by_distance[order(snakes_order_by_distance$distance, decreasing = FALSE), ]
+
+# Long format
+stacked_area_long <- pivot_longer(stacked_area, cols = c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral"), names_to = "Area", values_to = "Percentage")
+
+# Percentage of each behaviour
+stacked_area_long <- stacked_area_long %>%
+  group_by(Snake_ID) %>%
+  mutate(Percentage_total = sum(Percentage)) %>%
+  ungroup() %>%
+  mutate(Percentage = Percentage / Percentage_total * 100)
+
+# Order Snake ID by year of invasion
+stacked_area_long$Snake_ID <- factor(stacked_area_long$Snake_ID, levels = snakes_order_by_distance$Snake_ID)
+
+# Order behaviour variables
+stacked_area_long$Area <- factor(stacked_area_long$Area, levels = c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral"))
+
+
+# Colors for behaviours
+area_colors <- c(viridis(6)[6], viridis(6)[5], viridis(6)[4], viridis(6)[3], viridis(6)[2], viridis(6)[1])
+
+# Plot
+ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(x = "Snake ID", y = "% area during 50 min test", fill = "Area") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10), 
+        legend.text = element_text(size = 10), 
+        axis.title.x = element_text(size = 15),  
+        axis.title.y = element_text(size = 15),
+        axis.text.y = element_text(size = 10), 
+        legend.title = element_text(size = 15)) +
+  scale_fill_manual(values = area_colors)
+
+
+
+# ordered by svl
+
+
+# Snake_ID ordered by year of invasion
+snakes_order_by_svl <- area_df[, c("Snake_ID", "SVL")]
+
+snakes_order_by_svl <- snakes_order_by_svl[order(snakes_order_by_svl$SVL, decreasing = FALSE), ]
+
+# Long format
+stacked_area_long <- pivot_longer(stacked_area, cols = c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral"), names_to = "Area", values_to = "Percentage")
+
+# Percentage of each behaviour
+stacked_area_long <- stacked_area_long %>%
+  group_by(Snake_ID) %>%
+  mutate(Percentage_total = sum(Percentage)) %>%
+  ungroup() %>%
+  mutate(Percentage = Percentage / Percentage_total * 100)
+
+# Order Snake ID by SVL
+stacked_area_long$Snake_ID <- factor(stacked_area_long$Snake_ID, levels = snakes_order_by_svl$Snake_ID)
+
+# Order behaviour variables
+stacked_area_long$Area <- factor(stacked_area_long$Area, levels = c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral"))
+
+
+# Colors for behaviours
+area_colors <- c(viridis(6)[6], viridis(6)[5], viridis(6)[4], viridis(6)[3], viridis(6)[2], viridis(6)[1])
+
+# Plot
+ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(x = "Snake ID", y = "% area during 50 min test", fill = "Area") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10), 
+        legend.text = element_text(size = 10), 
+        axis.title.x = element_text(size = 15),  
+        axis.title.y = element_text(size = 15),
+        axis.text.y = element_text(size = 10), 
+        legend.title = element_text(size = 15)) +
+  scale_fill_manual(values = area_colors)
+
+
+
+
+
+
+
 
 
 # Spatial analysis + PERMANOVA / SIMPER (ANOVA?)
