@@ -2918,7 +2918,7 @@ summary_tracking_complete_outside <- summary_tracking_complete[summary_tracking_
 repeat_ID_outside <- summary_tracking_complete_outside[duplicated(summary_tracking_complete_outside$ID), "ID"]
 
 # select individuals
-repeat_ind_outside <- summary_tracking_complete_outside[summary_tracking_complete_outside$Snake_ID %in% repeat_ID_outside, ]
+repeat_ind_outside <- summary_tracking_complete_outside[summary_tracking_complete_outside$Snake_ID %in% repeat_ID_outside$ID, ]
 
 # assign 1 to first trials
 repeat_ind_outside$repeat_trial <- 1
@@ -2948,7 +2948,7 @@ repeat_ind_outside_no_gravid <- repeat_ind_outside[repeat_ind_outside$N_eggs == 
 repeat_ID <- summary_tracking_complete[duplicated(summary_tracking_complete$ID), "ID"]
 
 # Select ind with more than one tracking
-repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID, ]
+repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID$ID, ]
 
 
 # assign 1 to first trials
@@ -3887,7 +3887,7 @@ ggarrange(head_out_rep, body_out_rep, Visual_exp_rep,
 #####
 
 
-# Part 6.4: Behaviour and area use (WORK IN PROGRESS)
+# Part 6.4: Behaviour and area use 
 #####
 
 
@@ -3929,13 +3929,13 @@ duplicated(names(Snake_array_dupl[1,1,]))
 
 
 # How much time do we want to analyse
-study_time <- 1800
+study_time <- 600
 
 # Create data frame
-behaviour_df <- as.data.frame(matrix(data = NA, ncol = 13, nrow = length(names(Snake_array_dupl[1,1,]))))
+behaviour_df <- as.data.frame(matrix(data = NA, ncol = 15, nrow = length(names(Snake_array_dupl[1,1,]))))
 
 # Column names
-colnames(behaviour_df) <- c("Snake_ID", "headout_bf_bodyout", "headout_after_bodyout", "exploring_arena", "exploring_wall", "immobile_exposed", "hiding", "hiding_corner", "year", "distance", "Sex", "SVL", "treatment")
+colnames(behaviour_df) <- c("Snake_ID", "headout_bf_bodyout", "headout_after_bodyout", "exploring_arena", "exploring_wall", "immobile_exposed", "hiding", "hiding_corner", "year", "distance", "Sex", "SVL", "treatment", "n_eggs", "temperature")
 
 
 for (i in 1:length(names(Snake_array_dupl[1,1,]))){
@@ -3971,6 +3971,10 @@ for (i in 1:length(names(Snake_array_dupl[1,1,]))){
     behaviour_df$SVL[i] <- summary_tracking_complete_no_rep$SVL[i]
     
     behaviour_df$treatment[i] <- summary_tracking_complete_no_rep$Inv_situation[i]
+    
+    behaviour_df$n_eggs[i] <- summary_tracking_complete_no_rep$N_eggs[i]
+    
+    behaviour_df$temperature[i] <- summary_tracking_complete_no_rep$Temperature[i]
     
     
   } else {
@@ -4154,15 +4158,15 @@ duplicated(names(Snake_array_dupl[1,1,]))
 
 
 # How much time do we want to analyse
-study_time <- 1800
+study_time <- 600
 
 
 
 # Create data frame
-area_df <- as.data.frame(matrix(data = NA, ncol = 14, nrow = length(names(Snake_array_dupl[1,1,]))))
+area_df <- as.data.frame(matrix(data = NA, ncol = 16, nrow = length(names(Snake_array_dupl[1,1,]))))
 
 # Column names
-colnames(area_df) <- c("Snake_ID", "time_central_area", "time_intermediate_area", "time_refuge_area_1", "time_refuge_area_2", "time_initial_refuge", "time_distant_wall", "time_lateral_1", "time_lateral_2", "year", "distance", "Sex", "SVL", "treatment")
+colnames(area_df) <- c("Snake_ID", "time_central_area", "time_intermediate_area", "time_refuge_area_1", "time_refuge_area_2", "time_initial_refuge", "time_distant_wall", "time_lateral_1", "time_lateral_2", "year", "distance", "Sex", "SVL", "treatment", "n_eggs", "temperature")
 
 for (i in 1:length(names(Snake_array_dupl[1,1,]))){
   
@@ -4197,6 +4201,10 @@ for (i in 1:length(names(Snake_array_dupl[1,1,]))){
     area_df$SVL[i] <- summary_tracking_complete_no_rep$SVL[i]
     
     area_df$treatment[i] <- summary_tracking_complete_no_rep$Inv_situation[i]
+    
+    area_df$n_eggs[i] <- summary_tracking_complete_no_rep$N_eggs[i]
+    
+    area_df$temperature[i] <- summary_tracking_complete_no_rep$Temperature[i]
     
     
   } else {
@@ -4238,6 +4246,8 @@ stacked_area_treatment$SVL <- area_df$SVL
 stacked_area_treatment$distance <- area_df$distance
 
 stacked_area_treatment$sex <- area_df$Sex
+
+stacked_area_treatment$temperature <- area_df$temperature
 
 # Long format
 stacked_area_long <- pivot_longer(stacked_area, cols = c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral"), names_to = "Area", values_to = "Percentage")
@@ -4358,16 +4368,13 @@ ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
 
 
 
-
-
-
-
-
-
 # Spatial analysis + PERMANOVA / SIMPER (ANOVA?)
 
+# With gravid females
 # Behaviour
 # Delete Snake ID column
+stacked_behaviour_complete <- stacked_behaviour_treatment
+
 stacked_behaviour_treatment <- subset(stacked_behaviour_treatment, select = -c(Snake_ID))
 
 # Subset pca columns (numeric)
@@ -4401,10 +4408,13 @@ fviz_pca_biplot(pca_beh, geom.ind = "point",
 # Area
 
 # Delete Snake ID column
+
+stacked_area_complete <- stacked_area_treatment
+
 stacked_area_treatment <- subset(stacked_area_treatment, select = -c(Snake_ID))
 
 # Subset pca columns (numeric)
-stacked_area_treatment_var <- stacked_area_treatment[, c("Central area", "Intermediate area", "Initial refuge", "Distant wall", "Refuge area", "Over lateral refuge")]
+stacked_area_treatment_var <- stacked_area_treatment[, c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral")]
 
 # PCA
 pca_area <- prcomp(stacked_area_treatment_var, scale. = T)
@@ -4432,17 +4442,17 @@ fviz_pca_biplot(pca_area, geom.ind = "point",
 
 
 # PERMANOVA
-stacked_area_treatment_env <- stacked_area_treatment[, c("treatment", "year")]
+stacked_area_treatment_env <- stacked_area_treatment[, c("treatment", "distance", "SVL", "sex", "temperature")]
 
-stacked_behaviour_treatment_env <- stacked_behaviour_treatment[, c("treatment", "year")]
+stacked_behaviour_treatment_env <- stacked_behaviour_treatment[, c("treatment", "distance", "SVL", "Sex", "temperature")]
 
 # PERMANOVA behaviour
-beh.permanova <- adonis2(stacked_behaviour_treatment_var ~ treatment + year, data = stacked_behaviour_treatment_env, permutations = 999, method="euclidean")
+beh.permanova <- adonis2(stacked_behaviour_treatment_var ~ distance + SVL + Sex + temperature, data = stacked_behaviour_treatment_env, permutations = 999, method="euclidean")
 
 beh.permanova
 
 # PERMANOVA area
-beh.area <- adonis2(stacked_area_treatment_var ~ treatment + year, data = stacked_area_treatment_env, permutations = 999, method="euclidean")
+beh.area <- adonis2(stacked_area_treatment_var ~ distance + SVL + sex + temperature, data = stacked_area_treatment_env, permutations = 999, method="euclidean")
 
 beh.area
 
@@ -4455,6 +4465,8 @@ beh.dist <- vegdist(decostand(stacked_behaviour_treatment_var, "norm"), method="
 
 beh.dispersion <- betadisper(beh.dist, group = stacked_behaviour_treatment_env$treatment)
 
+beh.dispersion <- betadisper(beh.dist, group = stacked_behaviour_treatment_env$Sex)
+
 permutest(beh.dispersion)
 
 plot(beh.dispersion, hull = FALSE, ellipse = TRUE) 
@@ -4466,12 +4478,134 @@ area.dist <- vegdist(stacked_area_treatment_var, method="euclidean")
 
 area.dist <- vegdist(decostand(stacked_area_treatment_var, "norm"), method="euclidean")
 
+area.dispersion <- betadisper(area.dist, group = stacked_area_treatment_env$sex)
+
 area.dispersion <- betadisper(area.dist, group = stacked_area_treatment_env$treatment)
 
 permutest(area.dispersion)
 
 plot(area.dispersion, hull = FALSE, ellipse = TRUE) 
 
+
+
+# Without pregnant females
+
+# Behaviour
+
+beh_gravid <- as.numeric(rownames(behaviour_df[behaviour_df$n_eggs != 0, ]))
+
+# area
+
+area_gravid <- as.numeric(rownames(area_df[area_df$n_eggs != 0, ]))
+
+stacked_behaviour_treatment <- stacked_behaviour_treatment[-beh_gravid, ]
+
+# Subset pca columns (numeric)
+stacked_behaviour_treatment_var <- stacked_behaviour_treatment[1:7]
+
+# PCA
+pca_beh <- prcomp(stacked_behaviour_treatment_var, scale. = T)
+
+# Weights PCA axis
+pca_beh$rotation
+
+# Coordinates
+pca_beh$x
+
+# Summary
+summary(pca_beh)
+
+# Plot 1
+autoplot(pca_beh, data = stacked_behaviour_treatment, colour = 'treatment',
+         loadings = TRUE, loadings.colour = 'blue',
+         loadings.label = TRUE, loadings.label.size = 3)
+
+# Plot 2
+fviz_pca_biplot(pca_beh, geom.ind = "point", 
+                habillage = stacked_behaviour_treatment$Sex, 
+                axes = c(1, 2), 
+                pointsize = 3,
+                addEllipses = TRUE, ellipse.level = 0.9) 
+
+
+# Area
+
+# Delete Snake ID column
+
+stacked_area_treatment <- stacked_area_treatment[-area_gravid, ]
+
+# Subset pca columns (numeric)
+stacked_area_treatment_var <- stacked_area_treatment[, c("time_central_area", "time_intermediate_area", "time_initial_refuge", "time_distant_wall", "refuge_area", "over_lateral")]
+
+# PCA
+pca_area <- prcomp(stacked_area_treatment_var, scale. = T)
+
+# Weights PCA axis
+pca_area$rotation
+
+# Coordinates
+pca_area$x
+
+# Summary
+summary(pca_area)
+
+# Plot 1
+autoplot(pca_area, data = stacked_area_treatment, colour = 'treatment',
+         loadings = TRUE, loadings.colour = 'blue',
+         loadings.label = TRUE, loadings.label.size = 3)
+
+# Plot 2
+fviz_pca_biplot(pca_area, geom.ind = "point", 
+                habillage = stacked_area_treatment$sex, 
+                axes = c(1, 2), 
+                pointsize = 3,
+                addEllipses = TRUE, ellipse.level = 0.9) 
+
+
+# PERMANOVA
+stacked_area_treatment_env <- stacked_area_treatment[, c("treatment", "distance", "SVL", "sex", "temperature")]
+
+stacked_behaviour_treatment_env <- stacked_behaviour_treatment[, c("treatment", "distance", "SVL", "Sex", "temperature")]
+
+# PERMANOVA behaviour
+beh.permanova <- adonis2(stacked_behaviour_treatment_var ~ distance + SVL + Sex + temperature, data = stacked_behaviour_treatment_env, permutations = 999, method="euclidean")
+
+beh.permanova
+
+# PERMANOVA area
+beh.area <- adonis2(stacked_area_treatment_var ~ distance + SVL + sex + temperature, data = stacked_area_treatment_env, permutations = 999, method="euclidean")
+
+beh.area
+
+
+# Alternative method behaviour
+beh.dist <- vegdist(stacked_behaviour_treatment_var, method="euclidean")
+
+beh.dist <- vegdist(decostand(stacked_behaviour_treatment_var, "norm"), method="euclidean")
+
+
+beh.dispersion <- betadisper(beh.dist, group = stacked_behaviour_treatment_env$treatment)
+
+beh.dispersion <- betadisper(beh.dist, group = stacked_behaviour_treatment_env$Sex)
+
+permutest(beh.dispersion)
+
+plot(beh.dispersion, hull = FALSE, ellipse = TRUE) 
+
+
+
+# Alternative method area
+area.dist <- vegdist(stacked_area_treatment_var, method="euclidean")
+
+area.dist <- vegdist(decostand(stacked_area_treatment_var, "norm"), method="euclidean")
+
+area.dispersion <- betadisper(area.dist, group = stacked_area_treatment_env$sex)
+
+area.dispersion <- betadisper(area.dist, group = stacked_area_treatment_env$treatment)
+
+permutest(area.dispersion)
+
+plot(area.dispersion, hull = FALSE, ellipse = TRUE) 
 
 
 
