@@ -39,6 +39,7 @@ library(factoextra)
 library(graphics)
 library(olsrr)
 library(corrplot)
+library(car)
 
 #####
 
@@ -2904,6 +2905,444 @@ sm.survival(
 
 # Part 6.3: Repeatability analysis
 
+
+
+# Part 6.3.0: Repeatability without sex 2024 snakes
+#####
+
+# old data
+repeat_ID <- summary_tracking_complete$Snake_ID[duplicated(summary_tracking_complete$Snake_ID)]
+
+# Select ind with more than one tracking
+repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID, ]
+
+
+# assign 1 to first trials
+repeat_ind$repeat_trial <- 1
+
+for (i in 1:nrow(repeat_ind)){
+  
+  # And if duplicated, assign 2
+  if(duplicated(repeat_ind$ID)[i] == T){
+    
+    repeat_ind$repeat_trial[i] <- 2
+    
+  } else {
+    
+  }
+  
+}
+
+# Order snakes by ID (first the first trial and second the repeatiblity test)
+repeat_ind <- repeat_ind[order(repeat_ind$ID), ]
+
+repeat_ind_2024_merged <- repeat_ind[, c("Snake_ID", "Inv_situation", "Capture_day", "Time_head_out_sec_raw", "Time_body_out_sec_raw", "Repeatability", "Tracking", "Year_invasion", "Distance_Noahs", "SVL", "Real_Weight", "Condition", "Sex", "N_eggs", "repeat_trial")]
+
+# add new data
+
+repeat_2024 <- Snake_data[year(Snake_data$Capture_day) == 2024, ]
+
+# assign 1 to first trials
+repeat_2024$repeat_trial <- 1
+
+for (i in 1:nrow(repeat_2024)){
+  
+  # And if duplicated, assign 2
+  if(duplicated(repeat_2024$Snake_ID)[i] == T){
+    
+    repeat_2024$repeat_trial[i] <- 2
+    
+  } else {
+    
+  }
+  
+}
+
+
+repeat_2024_merged_2 <- repeat_2024[, c("Snake_ID", "Inv_situation", "Capture_day", "Time_head_out_sec_raw", "Time_body_out_sec_raw", "Repeatability", "Tracking", "Year_invasion", "Distance_Noahs", "repeat_trial")]
+
+repeat_ind_2024_merged$Capture_day <- as_datetime(repeat_ind_2024_merged$Capture_day)
+
+repeat_ind_2024_merged$Capture_day <- as_datetime(repeat_ind_2024_merged$Capture_day)
+
+
+repeat_2024_merged_2$Time_head_out_sec_raw <- as.numeric(repeat_2024_merged_2$Time_head_out_sec_raw)
+
+repeat_2024_merged_2$Time_body_out_sec_raw <- as.numeric(repeat_2024_merged_2$Time_body_out_sec_raw)
+
+# If snake didn't get out, the number of seconds is 3000
+repeat_2024_merged_2 <- repeat_2024_merged_2 %>% mutate(Time_head_out_sec_raw = ifelse(is.na(Time_head_out_sec_raw), time_limit, Time_head_out_sec_raw))
+
+repeat_2024_merged_2 <- repeat_2024_merged_2 %>% mutate(Time_body_out_sec_raw = ifelse(is.na(Time_body_out_sec_raw), time_limit, Time_body_out_sec_raw))
+
+repeat_ind_2024_merged$Capture_day <- as_datetime(repeat_ind_2024_merged$Capture_day)
+
+merged_repeat_2024 <- bind_rows(repeat_ind_2024_merged, repeat_2024_merged_2)
+
+merged_repeat_2024 <- merged_repeat_2024[order(merged_repeat_2024$Snake_ID), ]
+
+for(i in 1:nrow(merged_repeat_2024)){
+  
+  if(merged_repeat_2024$Time_head_out_sec_raw[i] > time_limit){
+    
+    merged_repeat_2024$Time_head_out_sec_raw[i] <- time_limit
+    
+    merged_repeat_2024$Time_body_out_sec_raw[i] <- time_limit
+    
+  } else { }
+  
+}
+
+
+
+# empty plot 
+plot(NULL, xlim = c(1, 2), ylim = c(0, 3000), xlab = "First trial (left)   |   Repeatibility trial (right)", ylab = "Time to head-out", xaxt = "n")
+
+# connect pairs of dots (same ind, first and second trial)
+for(i in 1:(nrow(merged_repeat_2024)/2)){
+  
+  if(merged_repeat_2024$Inv_situation[2*i] == "FRONT"){
+    
+    lines(c(merged_repeat_2024$repeat_trial[(2*i) - 1], merged_repeat_2024$repeat_trial[(2*i)]), c(merged_repeat_2024$Time_head_out_sec_raw[(2*i) - 1], merged_repeat_2024$Time_head_out_sec_raw[(2*i)]), type = "b", col = "red")
+    
+  } else {
+    
+    lines(c(merged_repeat_2024$repeat_trial[(2*i) - 1], merged_repeat_2024$repeat_trial[(2*i)]), c(merged_repeat_2024$Time_head_out_sec_raw[(2*i) - 1], merged_repeat_2024$Time_head_out_sec_raw[(2*i)]), type = "b", col = "blue")
+    
+  }
+  
+}
+
+# General plot (no groups)
+ggplot(data = merged_repeat_2024, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+ggplot(data = merged_repeat_2024, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_minimal() + 
+  facet_wrap(~ Inv_situation) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+merged_repeat_2024_core <- merged_repeat_2024[merged_repeat_2024$Inv_situation == "CORE", ]
+
+merged_repeat_2024_front <- merged_repeat_2024[merged_repeat_2024$Inv_situation == "FRONT", ]
+
+# CORE
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_core[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+# FRONT
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_front[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+# Without sex and all these extra variables (nº of eggs, etc ) It looks like core snake take less time to explore, but on the second trial they take more than on the first one. Repeatability is almost significant. Front snakes are more shy, and their behaviour is consistent.
+
+
+# Body out
+
+# General plot (no groups)
+ggplot(data = merged_repeat_2024, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+ggplot(data = merged_repeat_2024, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_minimal() + 
+  facet_wrap(~ Inv_situation) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+merged_repeat_2024_core <- merged_repeat_2024[merged_repeat_2024$Inv_situation == "CORE", ]
+
+merged_repeat_2024_front <- merged_repeat_2024[merged_repeat_2024$Inv_situation == "FRONT", ]
+
+# CORE
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_core[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+# FRONT
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_front[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+
+# Visual exploration
+
+# DELETE ROWS (and also individuals) that didn't do body-out under 3000 sec!!!
+
+merged_repeat_2024_outside <- subset(merged_repeat_2024, merged_repeat_2024[["Time_body_out_sec_raw"]] != time_limit)
+
+duplicated_outside <- duplicated(merged_repeat_2024_outside[["Snake_ID"]]) | duplicated(merged_repeat_2024_outside[["Snake_ID"]], fromLast = TRUE)
+
+merged_repeat_2024_outside <- merged_repeat_2024_outside[duplicated_outside, ]
+
+
+# empty plot 
+plot(NULL, xlim = c(1, 2), ylim = c(0, 3000), xlab = "First trial (left)   |   Repeatibility trial (right)", ylab = "Time to head-out", xaxt = "n")
+
+# connect pairs of dots (same ind, first and second trial)
+for(i in 1:(nrow(merged_repeat_2024_outside)/2)){
+  
+  if(merged_repeat_2024_outside$Inv_situation[2*i] == "FRONT"){
+    
+    lines(c(merged_repeat_2024_outside$repeat_trial[(2*i) - 1], merged_repeat_2024_outside$repeat_trial[(2*i)]), c(merged_repeat_2024_outside$Time_head_out_sec_raw[(2*i) - 1], merged_repeat_2024_outside$Time_head_out_sec_raw[(2*i)]), type = "b", col = "red")
+    
+  } else {
+    
+    lines(c(merged_repeat_2024_outside$repeat_trial[(2*i) - 1], merged_repeat_2024_outside$repeat_trial[(2*i)]), c(merged_repeat_2024_outside$Time_head_out_sec_raw[(2*i) - 1], merged_repeat_2024_outside$Time_head_out_sec_raw[(2*i)]), type = "b", col = "blue")
+    
+  }
+  
+}
+
+# General plot (no groups)
+ggplot(data = merged_repeat_2024_outside, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_bw() + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+ggplot(data = merged_repeat_2024_outside, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_minimal() + 
+  facet_wrap(~ Inv_situation) +
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "grey57") + 
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = "dodge", size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5) +  
+  geom_line(aes(group = Snake_ID), size = 0.5) + 
+  ylab("Time (s)") + 
+  ggtitle("Head-out time (s) since start of the experiment")
+
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_outside[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+merged_repeat_2024_outside_core <- merged_repeat_2024_outside[merged_repeat_2024_outside$Inv_situation == "CORE", ]
+
+merged_repeat_2024_outside_front <- merged_repeat_2024_outside[merged_repeat_2024_outside$Inv_situation == "FRONT", ]
+
+# CORE
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_outside_core[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+# FRONT
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_outside_front[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+
+
+
+#####
+
 # Part 6.3.1: Head-out
 #####
 
@@ -2918,7 +3357,7 @@ summary_tracking_complete_outside <- summary_tracking_complete[summary_tracking_
 repeat_ID_outside <- summary_tracking_complete_outside[duplicated(summary_tracking_complete_outside$ID), "ID"]
 
 # select individuals
-repeat_ind_outside <- summary_tracking_complete_outside[summary_tracking_complete_outside$Snake_ID %in% repeat_ID_outside$ID, ]
+repeat_ind_outside <- summary_tracking_complete_outside[summary_tracking_complete_outside$Snake_ID %in% repeat_ID_outside, ]
 
 # assign 1 to first trials
 repeat_ind_outside$repeat_trial <- 1
@@ -4609,6 +5048,8 @@ plot(area.dispersion, hull = FALSE, ellipse = TRUE)
 
 
 
+length(as.numeric(rownames(behaviour_df[behaviour_df$Sex == "M" & behaviour_df$treatment == "CORE", ])))
+
  #####
 
 
@@ -5918,6 +6359,11 @@ pairs(~ res_head_svl + res_body_svl + res_visual_svl,
 ##### 
 
 # Correlation between variables
+summary_tracking_complete_no_rep_noeggs_MF <- summary_tracking_complete_no_rep_noeggs[summary_tracking_complete_no_rep_noeggs$Sex != "Juv", ]
+
+t.test(log(SVL) ~ as.factor(Sex), summary_tracking_complete_no_rep_noeggs_MF)
+
+# Males are bigger than females
 
 variables_lm <- summary_tracking_complete_no_rep_noeggs[, c("Distance_Noahs", "Year_invasion", "SVL", "Condition", "Temperature", "R_H")]
 
@@ -5975,9 +6421,9 @@ ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Condition, y = log(Time_
 summary(lm(log(Time_head_out_sec_raw) ~ log(Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_noeggs))
 
 
-head_out_model <- lm(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_noeggs)
+head_out_model <- lm(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_noeggs)
 
-summary(lm(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_noeggs))
+summary(lm(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_noeggs))
 
 
 ols_step_best_subset(head_out_model)
@@ -5988,9 +6434,9 @@ ols_step_backward_p(head_out_model)
 
 
 # with pregnant females
-head_out_model <- lm(log(summary_tracking_complete_no_rep$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep$SVL) + Temperature , data = summary_tracking_complete_no_rep)
+head_out_model <- lm(log(summary_tracking_complete_no_rep$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep)
 
-summary(lm(log(summary_tracking_complete_no_rep$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep$SVL) + Temperature , data = summary_tracking_complete_no_rep))
+summary(lm(log(summary_tracking_complete_no_rep$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + logCondition + Temperature , data = summary_tracking_complete_no_rep))
 
 
 ols_step_best_subset(head_out_model)
@@ -6047,9 +6493,9 @@ ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Condition, y = log(Time_
 summary(lm(log(Time_body_out_sec_raw) ~ log(Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_noeggs))
 
 
-body_out_model <- lm(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_noeggs)
+body_out_model <- lm(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_noeggs)
 
-summary(lm(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_noeggs))
+summary(lm(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_noeggs))
 
 
 ols_step_best_subset(body_out_model)
@@ -6060,9 +6506,9 @@ ols_step_backward_p(body_out_model)
 
 # with pregnant females
 
-body_out_model <- lm(log(summary_tracking_complete_no_rep$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep$SVL) + Temperature , data = summary_tracking_complete_no_rep)
+body_out_model <- lm(log(summary_tracking_complete_no_rep$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep)
 
-summary(lm(log(summary_tracking_complete_no_rep$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep$SVL) + Temperature , data = summary_tracking_complete_no_rep))
+summary(lm(log(summary_tracking_complete_no_rep$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + logCondition + Temperature , data = summary_tracking_complete_no_rep))
 
 
 ols_step_best_subset(body_out_model)
@@ -6121,9 +6567,9 @@ ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Condition, y = l
 summary(lm(log(Visual_exp) ~ (Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs))
 
 
-visual_exp_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
+visual_exp_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
 
-summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
+summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Visual_exp) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
 
 
 ols_step_best_subset(visual_exp_model)
@@ -6144,9 +6590,9 @@ ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Distance_Noahs, 
 
 # with pregnant females 
 
-visual_exp_model <- lm(log(summary_tracking_complete_no_rep_outside$Visual_exp) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside)
+visual_exp_model <- lm(log(summary_tracking_complete_no_rep_outside$Visual_exp) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_outside)
 
-summary(lm(log(summary_tracking_complete_no_rep_outside$Visual_exp) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside))
+summary(lm(log(summary_tracking_complete_no_rep_outside$Visual_exp) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_outside))
 
 
 ols_step_best_subset(visual_exp_model)
@@ -6207,9 +6653,9 @@ ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Condition, y = l
 summary(lm(log(Time_head_out_sec_raw) ~ log(Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_outside_noeggs))
 
 
-head_out_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
+head_out_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
 
-summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
+summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_head_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
 
 
 ols_step_best_subset(head_out_model)
@@ -6267,9 +6713,9 @@ ggplot(summary_tracking_complete_no_rep_outside_noeggs, aes(x = Condition, y = l
 summary(lm(log(Time_body_out_sec_raw) ~ (Distance_Noahs) + Sex, data = summary_tracking_complete_no_rep_outside))
 
 
-body_out_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
+body_out_model <- lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs)
 
-summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + log(summary_tracking_complete_no_rep_outside_noeggs$SVL) + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
+summary(lm(log(summary_tracking_complete_no_rep_outside_noeggs$Time_body_out_sec_raw) ~ Distance_Noahs + Sex + Condition + Temperature , data = summary_tracking_complete_no_rep_outside_noeggs))
 
 
 ols_step_best_subset(body_out_model)
@@ -6286,10 +6732,10 @@ ols_step_backward_p(body_out_model)
 #####
 
 # Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
-plot(log(Time_head_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+plot(log(Time_head_out_sec_raw) ~ Condition, data = summary_tracking_complete_no_rep,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
 
 # Censored regression
-fit.cen <- censReg(log(Time_head_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs, 
+fit.cen <- censReg(log(Time_head_out_sec_raw) ~ Condition, data = summary_tracking_complete_no_rep_noeggs, 
                    left = -Inf, right = log(3000))
 summary(fit.cen)
 
@@ -6298,14 +6744,14 @@ coef(fit.cen, logSigma = FALSE)
 
 
 # Fit a line using OLS regression (linear regression)
-fit.OLS <- lm(log(Time_head_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs)
+fit.OLS <- lm(log(Time_head_out_sec_raw) ~ Condition, data = summary_tracking_complete_no_rep_noeggs)
 summary(fit.OLS)
 
 # fit regression only of non-censored data
 fit.detect <- lm(summary_tracking_complete_no_rep$Time_head_out_sec_raw[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw & summary_tracking_complete_no_rep$Time_head_out_sec_raw < 3000] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw & summary_tracking_complete_no_rep$Time_head_out_sec_raw < 3000])
 summary(fit.detect)
 
-fit.detect <- lm(log(Time_head_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_outside_noeggs)
+fit.detect <- lm(log(Time_head_out_sec_raw) ~ Condition, data = summary_tracking_complete_no_rep_outside_noeggs)
 
 # Table with slope estimates of each linear fit
 rbind(
@@ -6340,7 +6786,7 @@ lineplot <- function() {
 
 par(mfrow = c(1, 2))
 
-plot(summary_tracking_complete_no_rep_noeggs$Distance_Noahs, log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+plot(summary_tracking_complete_no_rep_noeggs$Condition, log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
 lineplot()
 
 hist(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw), breaks = 100, main = 'Censored Data')
@@ -6348,10 +6794,10 @@ hist(log(summary_tracking_complete_no_rep_noeggs$Time_head_out_sec_raw), breaks 
 
 # Body out
 # Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
-plot(log(Time_body_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+plot(log(Time_body_out_sec_raw) ~ Condition + Distance_Noahs + Sex + Temperature, data = summary_tracking_complete_no_rep_noeggs,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
 
 # Censored regression
-fit.cen <- censReg(log(Time_body_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs, 
+fit.cen <- censReg(log(Time_body_out_sec_raw) ~ Condition + Distance_Noahs + Sex + Temperature, data = summary_tracking_complete_no_rep_noeggs, 
                    left = -Inf, right = log(3000))
 summary(fit.cen)
 
@@ -6360,14 +6806,14 @@ coef(fit.cen, logSigma = FALSE)
 
 
 # Fit a line using OLS regression (linear regression)
-fit.OLS <- lm(log(Time_body_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs)
+fit.OLS <- lm(log(Time_body_out_sec_raw) ~ Condition + Distance_Noahs + Sex + Temperature, data = summary_tracking_complete_no_rep_noeggs)
 summary(fit.OLS)
 
 # fit regression only of non-censored data
 fit.detect <- lm(summary_tracking_complete_no_rep$Time_body_out_sec_raw[0 <= summary_tracking_complete_no_rep$Time_body_out_sec_raw & summary_tracking_complete_no_rep$Time_body_out_sec_raw < 3000] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Time_body_out_sec_raw & summary_tracking_complete_no_rep$Time_body_out_sec_raw < 3000])
 summary(fit.detect)
 
-fit.detect <- lm(log(Time_body_out_sec_raw) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_outside_noeggs)
+fit.detect <- lm(log(Time_body_out_sec_raw) ~ Condition + Distance_Noahs + Sex + Temperature, data = summary_tracking_complete_no_rep_outside_noeggs)
 
 # Table with slope estimates of each linear fit
 rbind(
@@ -6402,7 +6848,7 @@ lineplot <- function() {
 
 par(mfrow = c(1, 2))
 
-plot(summary_tracking_complete_no_rep_noeggs$Distance_Noahs, log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+plot(summary_tracking_complete_no_rep_noeggs$Condition + Distance_Noahs + Sex + Temperature, log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
 lineplot()
 
 hist(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), breaks = 100, main = 'Censored Data')
@@ -6413,10 +6859,10 @@ hist(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), breaks 
 
 # Visual exploration
 # Plot censored data (only right cenosred, maximum time it takes the snake to exit the refuge)
-plot(log1p(Visual_exp) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+plot(log1p(Visual_exp) ~ Condition + Distance_Noahs + Sex + Temperature, data = summary_tracking_complete_no_rep_noeggs,  pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
 
 # Censored regression
-fit.cen <- censReg(log1p(Visual_exp) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs, 
+fit.cen <- censReg(log1p(Visual_exp) ~ Condition + Distance_Noahs + Sex + Temperature, data = summary_tracking_complete_no_rep_noeggs, 
                    left = 0, right = Inf)
 summary(fit.cen)
 
@@ -6425,14 +6871,14 @@ coef(fit.cen, logSigma = FALSE)
 
 
 # Fit a line using OLS regression (linear regression)
-fit.OLS <- lm(log1p(Visual_exp) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_noeggs)
+fit.OLS <- lm(log1p(Visual_exp) ~ Condition + Distance_Noahs + Sex + Temperature, data = summary_tracking_complete_no_rep_noeggs)
 summary(fit.OLS)
 
 # fit regression only of non-censored data
 fit.detect <- lm(summary_tracking_complete_no_rep$Visual_exp[0 <= summary_tracking_complete_no_rep$Visual_exp & summary_tracking_complete_no_rep$Visual_exp < 3000] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Visual_exp & summary_tracking_complete_no_rep$Visual_exp < 3000])
 summary(fit.detect)
 
-fit.detect <- lm(log1p(Visual_exp) ~ Distance_Noahs, data = summary_tracking_complete_no_rep_outside_noeggs)
+fit.detect <- lm(log1p(Visual_exp) ~ Condition + Distance_Noahs + Sex + Temperature, data = summary_tracking_complete_no_rep_outside_noeggs)
 
 summary(fit.detect)
 
@@ -6469,11 +6915,10 @@ lineplot <- function() {
 
 par(mfrow = c(1, 2))
 
-plot(summary_tracking_complete_no_rep_noeggs$Distance_Noahs, log1p(summary_tracking_complete_no_rep_noeggs$Visual_exp), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
+plot(summary_tracking_complete_no_rep_noeggs$Condition + Distance_Noahs + Sex + Temperature, log1p(summary_tracking_complete_no_rep_noeggs$Visual_exp), pch = 19, cex = 0.7, col = 'grey60', main = 'Censored Data')
 lineplot()
 
 hist(log1p(summary_tracking_complete_no_rep_noeggs$Visual_exp), breaks = 100, main = 'Censored Data')
-
 
 
 
@@ -6788,7 +7233,7 @@ sm.survival(
 # Cox-hazard model
 
 # raw head-out
-res.cox_head <- coxph(Surv(Time_head_out_sec_raw, Head_out_01) ~ Distance_Noahs + log(SVL) + Temperature + Sex, data = summary_tracking_complete_no_rep_noeggs)
+res.cox_head <- coxph(Surv(Time_head_out_sec_raw, Head_out_01) ~ Distance_Noahs + Condition + Temperature + Sex, data = summary_tracking_complete_no_rep_noeggs)
 
 res.cox_head
 
@@ -6822,3 +7267,441 @@ summary(res.cox_logbody)
 
 
 #####
+
+
+
+
+
+
+
+plot(summary_tracking_complete_no_rep_noeggs$Condition ~ summary_tracking_complete_no_rep_noeggs$Distance_Noahs)
+
+abline(lm(summary_tracking_complete_no_rep_noeggs$Condition ~ summary_tracking_complete_no_rep_noeggs$Distance_Noahs))
+
+
+#####
+
+
+##### PART 12: Distanced traveled and speed
+
+
+# Duplicate data frame
+Snake_array_dupl <- Snake_array
+
+# No repeatability filter
+snake_id <- names(Snake_array[1,1,])
+
+duplicated(snake_id)
+
+dupl_positions <- array(data = NA)
+
+a <- 1
+
+for (i in 1:length(snake_id)){
+  
+  if(duplicated(snake_id)[i] == FALSE){
+    
+    
+  } else {
+    
+    dupl_positions[a] <- i
+    
+    a <- a + 1
+    
+  }
+  
+}
+
+# Final data frame without duplicates (repeatability)
+Snake_array_dupl <- Snake_array_dupl[, , -dupl_positions]
+
+duplicated(names(Snake_array_dupl[1,1,]))
+
+
+# How much time do we want to analyse
+study_time <- 900
+
+# Create data frame
+movement_df <- as.data.frame(matrix(data = NA, ncol = 18, nrow = length(names(Snake_array_dupl[1,1,]))))
+
+# Column names
+colnames(movement_df) <- c("Snake_ID", "avg_speed", "total_dist_trav", "avg_speed_moving", "total_dist_trav_moving", "time_moving", "time_hidden", "n_visits_refuge", "avg_time_hidden", "avg_time_bw_refuges", "year", "distance", "Sex", "SVL", "Condition", "treatment", "n_eggs", "temperature")
+
+for (i in 1:length(names(Snake_array_dupl[1,1,]))){
+
+  # body-out better than head-out
+  if(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time <= 3000){
+    
+    # snake ID
+    movement_df$Snake_ID[i] <- summary_tracking_complete_no_rep$Snake_ID[i]
+    
+    # avg speed during the tested time, independent of behaviour
+    movement_df$avg_speed[i] <- mean(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 21, i]))
+    
+    # total distance travelled, independent of behaviour
+    movement_df$total_dist_trav[i] <- sum(as.numeric(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), 21, i]))
+    
+    
+    # subsample: extract only rows when snake is moving
+    
+    movement_df_moving <- as.data.frame(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), , i])
+
+    movement_df_moving <- subset(movement_df_moving, behaviour == "moving", select = t:behaviour)
+    
+    movement_df$avg_speed_moving[i] <- mean(as.numeric(movement_df_moving[, 21]))
+    
+    movement_df$total_dist_trav_moving[i] <- sum(as.numeric(movement_df_moving[, 21]))
+    
+    movement_df$time_moving[i] <- sum(movement_df_moving[, 22] == "moving")
+    
+    # subsample: extract only rows when snake is hidden
+    
+    movement_df_hidden <- as.data.frame(Snake_array_dupl[(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + 1):(summary_tracking_complete_no_rep$Time_body_out_sec_raw[i] + study_time), , i])
+    
+    movement_df_hidden <- subset(movement_df_hidden, behaviour == "hidden", select = t:behaviour)
+    
+    movement_df$time_hidden[i] <- sum(movement_df_hidden[, 22] == "hidden")
+    
+    # differences between numbers
+    diff_hidden <- diff(as.numeric(movement_df_hidden$t))
+    
+    jumps <- diff_hidden[diff_hidden > 1]
+    
+    n_jumps <- length(jumps)
+    
+    jump_index <- which(diff_hidden > 1)
+    
+    chunk <- split(as.numeric(movement_df_hidden$t), cumsum(c(1, diff_hidden > 1)))
+  
+    chunk_length <- sapply(chunk, length)
+
+    # jump demonstrates a change from hide 1 to hide 2
+    
+    # We are going to select only those visits that last for longer than 5 seconds, as visits that last for less than 5 seconds, it's just exploration. The snake doesn't hide completely, it only enters its head and exits in a moment
+    
+    valid_visits <- chunk_length > 5
+    
+    n_jumps_valid <- sum(valid_visits) - 1
+    
+    movement_df$n_visits_refuge[i] <- n_jumps + 1
+    
+    movement_df$avg_time_bw_refuges[i] <- mean(jumps[valid_visits[-length(valid_visits)]])
+    
+    movement_df$avg_time_hidden[i] <- mean(chunk_length[valid_visits])
+    
+    movement_df$year[i] <- summary_tracking_complete_no_rep$Year_invasion[i]
+    
+    movement_df$distance[i] <- summary_tracking_complete_no_rep$Distance_Noahs[i]
+    
+    movement_df$Sex[i] <- summary_tracking_complete_no_rep$Sex[i]
+    
+    movement_df$SVL[i] <- summary_tracking_complete_no_rep$SVL[i]
+    
+    movement_df$Condition[i] <- summary_tracking_complete_no_rep$Condition[i]
+    
+    movement_df$treatment[i] <- summary_tracking_complete_no_rep$Inv_situation[i]
+    
+    movement_df$n_eggs[i] <- summary_tracking_complete_no_rep$N_eggs[i]
+    
+    movement_df$temperature[i] <- summary_tracking_complete_no_rep$Temperature[i]
+    
+    
+  } else {
+    
+    
+  }
+  
+}
+
+
+movement_df <- movement_df %>% drop_na(Snake_ID)
+
+movement_df <- movement_df[which(movement_df$Sex != "Juv"),]
+
+
+movement_df_no_pregnant <- movement_df[which(movement_df$n_eggs == 0), ]
+
+# with pregnant females
+# Comparación entre 'core' y 'front'
+# Variables a comparar: avg_speed, n_visits_refuge, avg_time_hidden, total_dist_trav
+comparar_core_front <- function(variable) {
+  t.test(movement_df[[variable]] ~ movement_df$treatment)
+}
+
+# Comparación entre machos y hembras
+# Variables a comparar: avg_speed, n_visits_refuge, avg_time_hidden, total_dist_trav
+comparar_sexo <- function(variable) {
+  t.test(movement_df[[variable]] ~ movement_df$Sex)
+}
+
+# Verificación de normalidad y homogeneidad de varianzas
+verificar_supuestos <- function(variable, grupo) {
+  shapiro.test(movement_df[[variable]])  # Prueba de normalidad
+  leveneTest(movement_df[[variable]] ~ movement_df[[grupo]])  # Prueba de homogeneidad de varianzas
+}
+
+# Aplicar las comparaciones
+variables <- c("avg_speed_moving", "total_dist_trav_moving", "n_visits_refuge", "avg_time_hidden", "avg_time_bw_refuges")
+
+# Comparación 'core' vs 'front'
+resultados_core_front <- lapply(variables, comparar_core_front)
+names(resultados_core_front) <- variables
+
+# Comparación machos vs hembras
+resultados_sexo <- lapply(variables, comparar_sexo)
+names(resultados_sexo) <- variables
+
+# Verificar supuestos
+supuestos_core_front <- lapply(variables, verificar_supuestos, grupo = "treatment")
+supuestos_sexo <- lapply(variables, verificar_supuestos, grupo = "Sex")
+
+# Imprimir resultados
+resultados_core_front
+resultados_sexo
+supuestos_core_front
+supuestos_sexo
+
+# Comparación según la variable 'distance'
+# Ejemplo de regresión lineal
+modelo_distancia <- lm(avg_speed_moving ~ distance + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(total_dist_trav_moving ~ distance + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(n_visits_refuge ~ distance + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(avg_time_hidden ~ distance + Condition + Sex, data = movement_df)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(avg_time_bw_refuges ~ distance + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+# year
+modelo_distancia <- lm(avg_speed_moving ~ year + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(total_dist_trav_moving ~ year + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(n_visits_refuge ~ year + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(avg_time_hidden ~ year + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(avg_time_bw_refuges ~ year + Condition + Sex + temperature, data = movement_df)
+summary(modelo_distancia)
+
+
+# Boxplot 'core' vs 'front'
+boxplot_core_front <- function(variable) {
+  ggplot(movement_df, aes(x = treatment, y = .data[[variable]], fill = treatment)) +
+    geom_boxplot() +
+    labs(title = paste("Comparación de", variable, "entre 'core' y 'front'"),
+         x = "Tratamiento", y = variable) +
+    theme_minimal()
+}
+
+# Boxplot machos vs hembras
+boxplot_sexo <- function(variable) {
+  ggplot(movement_df, aes(x = Sex, y = .data[[variable]], fill = Sex)) +
+    geom_boxplot() +
+    labs(title = paste("Comparación de", variable, "entre machos y hembras"),
+         x = "Sexo", y = variable) +
+    theme_minimal()
+}
+
+# Scatterplot con 'distance'
+scatterplot_distance <- function(variable) {
+  ggplot(movement_df, aes(x = distance, y = .data[[variable]])) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    labs(title = paste("Relación entre", variable, "y distancia"),
+         x = "Distancia", y = variable) +
+    theme_minimal()
+}
+
+# Scatterplot con 'year'
+scatterplot_year <- function(variable) {
+  ggplot(movement_df, aes(x = year, y = .data[[variable]])) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    labs(title = paste("Relación entre", variable, "y año"),
+         x = "Año", y = variable) +
+    theme_minimal()
+}
+
+# Scatterplot con 'condition'
+scatterplot_condition <- function(variable) {
+  ggplot(movement_df, aes(x = Condition, y = .data[[variable]])) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    labs(title = paste("Relación entre", variable, "y condition"),
+         x = "Condition", y = variable) +
+    theme_minimal()
+}
+
+# Crear y guardar los gráficos
+plot_list <- list()
+for (variable in variables) {
+  plot_list[[paste(variable, "core_front")]] <- boxplot_core_front(variable)
+  plot_list[[paste(variable, "sexo")]] <- boxplot_sexo(variable)
+  plot_list[[paste(variable, "distance")]] <- scatterplot_distance(variable)
+  plot_list[[paste(variable, "year")]] <- scatterplot_year(variable)
+  plot_list[[paste(variable, "condition")]] <- scatterplot_condition(variable)
+}
+
+# Mostrar los gráficos
+for (plot_name in names(plot_list)) {
+  print(plot_list[[plot_name]])
+}
+
+
+# test condition ~ distance and year
+model_year <- lm(Condition ~ year, data = movement_df)
+summary(model_year)
+
+
+model_distance <- lm(Condition ~ distance, data = movement_df)
+summary(model_distance)
+
+
+
+# without pregnant females
+# Comparación entre 'core' y 'front'
+# Variables a comparar: avg_speed, n_visits_refuge, avg_time_hidden, total_dist_trav
+comparar_core_front <- function(variable) {
+  t.test(movement_df_no_pregnant[[variable]] ~ movement_df_no_pregnant$treatment)
+}
+
+# Comparación entre machos y hembras
+# Variables a comparar: avg_speed, n_visits_refuge, avg_time_hidden, total_dist_trav
+comparar_sexo <- function(variable) {
+  t.test(movement_df_no_pregnant[[variable]] ~ movement_df_no_pregnant$Sex)
+}
+
+# Verificación de normalidad y homogeneidad de varianzas
+verificar_supuestos <- function(variable, grupo) {
+  shapiro.test(movement_df_no_pregnant[[variable]])  # Prueba de normalidad
+  leveneTest(movement_df_no_pregnant[[variable]] ~ movement_df_no_pregnant[[grupo]])  # Prueba de homogeneidad de varianzas
+}
+
+# Aplicar las comparaciones
+variables <- c("avg_speed_moving", "total_dist_trav_moving", "n_visits_refuge", "avg_time_hidden", "avg_time_bw_refuges")
+
+# Comparación 'core' vs 'front'
+resultados_core_front <- lapply(variables, comparar_core_front)
+names(resultados_core_front) <- variables
+
+# Comparación machos vs hembras
+resultados_sexo <- lapply(variables, comparar_sexo)
+names(resultados_sexo) <- variables
+
+# Verificar supuestos
+supuestos_core_front <- lapply(variables, verificar_supuestos, grupo = "treatment")
+supuestos_sexo <- lapply(variables, verificar_supuestos, grupo = "Sex")
+
+# Imprimir resultados
+resultados_core_front
+resultados_sexo
+supuestos_core_front
+supuestos_sexo
+
+# Comparación según la variable 'distance'
+# Ejemplo de regresión lineal
+modelo_distancia <- lm(avg_speed_moving ~ distance, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(total_dist_trav_moving ~ distance, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(n_visits_refuge ~ distance, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(avg_time_hidden ~ distance, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(avg_time_bw_refuges ~ distance, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+# year
+modelo_distancia <- lm(avg_speed_moving ~ year, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(total_dist_trav_moving ~ year, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(n_visits_refuge ~ year, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(avg_time_hidden ~ year, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+modelo_distancia <- lm(avg_time_bw_refuges ~ year, data = movement_df_no_pregnant)
+summary(modelo_distancia)
+
+
+# Boxplot 'core' vs 'front'
+boxplot_core_front <- function(variable) {
+  ggplot(movement_df_no_pregnant, aes(x = treatment, y = .data[[variable]], fill = treatment)) +
+    geom_boxplot() +
+    labs(title = paste("Comparación de", variable, "entre 'core' y 'front'"),
+         x = "Tratamiento", y = variable) +
+    theme_minimal()
+}
+
+# Boxplot machos vs hembras
+boxplot_sexo <- function(variable) {
+  ggplot(movement_df_no_pregnant, aes(x = Sex, y = .data[[variable]], fill = Sex)) +
+    geom_boxplot() +
+    labs(title = paste("Comparación de", variable, "entre machos y hembras"),
+         x = "Sexo", y = variable) +
+    theme_minimal()
+}
+
+# Scatterplot con 'distance'
+scatterplot_distance <- function(variable) {
+  ggplot(movement_df_no_pregnant, aes(x = distance, y = .data[[variable]])) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    labs(title = paste("Relación entre", variable, "y distancia"),
+         x = "Distancia", y = variable) +
+    theme_minimal()
+}
+
+# Scatterplot con 'year'
+scatterplot_year <- function(variable) {
+  ggplot(movement_df_no_pregnant, aes(x = year, y = .data[[variable]])) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    labs(title = paste("Relación entre", variable, "y año"),
+         x = "Año", y = variable) +
+    theme_minimal()
+}
+
+# Crear y guardar los gráficos
+plot_list <- list()
+for (variable in variables) {
+  plot_list[[paste(variable, "core_front")]] <- boxplot_core_front(variable)
+  plot_list[[paste(variable, "sexo")]] <- boxplot_sexo(variable)
+  plot_list[[paste(variable, "distance")]] <- scatterplot_distance(variable)
+  plot_list[[paste(variable, "year")]] <- scatterplot_year(variable)
+}
+
+# Mostrar los gráficos
+for (plot_name in names(plot_list)) {
+  print(plot_list[[plot_name]])
+}
+
+
+
+
+
+
+
+
+
+
+
