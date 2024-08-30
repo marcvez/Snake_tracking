@@ -1,4 +1,5 @@
 .idea
+.Rhistory
 atracker
 env
 Excels tracking
@@ -6,6 +7,7 @@ Meetings
 MS
 Old_Excels
 Old_Scripts
+Snake_tracking_clean_script_files
 Tracked_snakes_info.qgz
 summary_tracking_complete.csv
 ~$ake tracking methods.docx

@@ -1132,7 +1132,7 @@ load("Arena_array.Rda")
 # repeatability: If it was the first trial of the snake ("N") or it was a repeatability trial ("Y")
 # time_limit: how many seconds do we want to analyse from each snake
 
-ID <- 14739
+ID <- 202308
 repeatability <- "N"
 time_limit <- 3000
 
@@ -2842,6 +2842,10 @@ ggsurvplot(fit_head_out,
            surv.median.line = "hv",
            legend.labs = c("CORE", "FRONT"))
 
+survdiff(Surv(Time_head_out_sec_raw, Head_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep)
+
+coxph(Surv(Time_head_out_sec_raw, Head_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep)
+
 
 # Body-out probability between front and core
 survfit2(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation,
@@ -2868,6 +2872,10 @@ ggsurvplot(fit_body_out,
            palette = c("#E7B800", "#2E9FDF"),
            surv.median.line = "hv",
            legend.labs = c("CORE", "FRONT"))
+
+survdiff(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep)
+
+coxph(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep)
 
 
 
@@ -2899,6 +2907,25 @@ sm.survival(
 )
 
 
+
+
+# by sex
+
+fit_head_out <- survfit(Surv(Time_head_out_sec_raw, Head_out_01) ~ Sex, data = summary_tracking_complete_no_rep)
+
+
+ggsurvplot(fit_head_out,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = "strata", 
+           linetype = c(1, 1, 1),
+           ggtheme = theme_bw(),
+           palette = c("#E7B800", "#2E9FDF", "#2EFF43"),
+           surv.median.line = "hv",
+           legend.labs = c("F", "Juv", "M"))
+
+# no major differences
 
 #####
 
@@ -4368,7 +4395,7 @@ duplicated(names(Snake_array_dupl[1,1,]))
 
 
 # How much time do we want to analyse
-study_time <- 600
+study_time <- 900
 
 # Create data frame
 behaviour_df <- as.data.frame(matrix(data = NA, ncol = 15, nrow = length(names(Snake_array_dupl[1,1,]))))
@@ -4597,7 +4624,7 @@ duplicated(names(Snake_array_dupl[1,1,]))
 
 
 # How much time do we want to analyse
-study_time <- 600
+study_time <- 900
 
 
 
@@ -5050,7 +5077,8 @@ plot(area.dispersion, hull = FALSE, ellipse = TRUE)
 
 length(as.numeric(rownames(behaviour_df[behaviour_df$Sex == "M" & behaviour_df$treatment == "CORE", ])))
 
- #####
+ 
+#####
 
 
 
@@ -6376,10 +6404,6 @@ corrplot(cor(variables_lm), method="color")
 
 ##### 
 
-
-
-
-
 # Head-out
 
 ggplot(summary_tracking_complete_no_rep_noeggs, aes(x = Year_invasion, y = log(Time_head_out_sec_raw), col = Sex)) +
@@ -6748,10 +6772,10 @@ fit.OLS <- lm(log(Time_head_out_sec_raw) ~ Condition, data = summary_tracking_co
 summary(fit.OLS)
 
 # fit regression only of non-censored data
-fit.detect <- lm(summary_tracking_complete_no_rep$Time_head_out_sec_raw[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw & summary_tracking_complete_no_rep$Time_head_out_sec_raw < 3000] ~ summary_tracking_complete_no_rep$Year_invasion[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw & summary_tracking_complete_no_rep$Time_head_out_sec_raw < 3000])
+fit.detect <- lm(summary_tracking_complete_no_rep$Time_head_out_sec_raw[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw & summary_tracking_complete_no_rep$Time_head_out_sec_raw < 3000] ~ summary_tracking_complete_no_rep$Condition[0 <= summary_tracking_complete_no_rep$Time_head_out_sec_raw & summary_tracking_complete_no_rep$Time_head_out_sec_raw < 3000])
 summary(fit.detect)
 
-fit.detect <- lm(log(Time_head_out_sec_raw) ~ Condition, data = summary_tracking_complete_no_rep_outside_noeggs)
+summary(fit.detect)
 
 # Table with slope estimates of each linear fit
 rbind(
@@ -6852,6 +6876,11 @@ plot(summary_tracking_complete_no_rep_noeggs$Condition + Distance_Noahs + Sex + 
 lineplot()
 
 hist(log(summary_tracking_complete_no_rep_noeggs$Time_body_out_sec_raw), breaks = 100, main = 'Censored Data')
+
+fit.cen <- censReg(log(Visual_exp) ~ Year_invasion, data = summary_tracking_complete_no_rep, left = 1, right = Inf)
+
+
+
 
 
 
@@ -7559,6 +7588,25 @@ for (plot_name in names(plot_list)) {
 }
 
 
+combine_plots <- function(variable) {
+  # Crear los cinco gráficos utilizando las funciones existentes
+  plot1 <- boxplot_core_front(variable)
+  plot2 <- boxplot_sexo(variable)
+  plot3 <- scatterplot_distance(variable)
+  plot4 <- scatterplot_year(variable)
+  plot5 <- scatterplot_condition(variable)
+  
+  # Combinar los gráficos en una única figura
+  combined_plot <- (plot1 | plot2) / (plot3 | plot4 | plot5)
+  
+  # Mostrar el gráfico combinado
+  combined_plot
+}
+
+combine_plots(variables)
+
+
+
 # test condition ~ distance and year
 model_year <- lm(Condition ~ year, data = movement_df)
 summary(model_year)
@@ -7694,6 +7742,8 @@ for (variable in variables) {
 for (plot_name in names(plot_list)) {
   print(plot_list[[plot_name]])
 }
+
+
 
 
 
