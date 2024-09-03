@@ -1,17 +1,22 @@
 ---
 title: "Snake tracking"
 author: "Marc Vez-Garzón"
-format: html
+format: 
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 4
+    number-sections: true
 editor: visual
 ---
 
-# Snake tracking
+# Introduction
 
 This document includes all the parts dedicated to analyse the movement and behaviour of multiple individuals of *Hemorrhois hippocrepis* collected on the island of Ibiza during the months of April to June 2023 and 2024.
 
 In this study, we try to find if there are significant differences in the use of space, boldness, and exploratory behaviour between regions of the island recently invaded with populations of *Podarcis pityusensis* (endemic lizard of the island of Ibiza, threatened by this invasive snake) and regions of the island invaded for a long time and without natural populations of lizards.
 
-## 0. Packages
+# Packages
 
 ```{r packages}
 #| warning: false
@@ -46,7 +51,7 @@ library(censReg)
 library(patchwork)
 ```
 
-## 1. Load data
+# Load data
 
 Load the required files needed to run this script. Files can be found in https://github.com/marcvez/Snake_tracking.git
 
@@ -96,7 +101,7 @@ summary_tracking_complete_no_rep_outside_noeggs <- summary_tracking_complete_no_
 summary_tracking_complete_no_rep_noeggs <- summary_tracking_complete_no_rep[summary_tracking_complete_no_rep$N_eggs == 0, ]
 ```
 
-### 1.1. Snake position extraction
+## Snake position extraction
 
 Don't run if `Snake_array` and `Arena_array` have been already loaded, as these functions take a lot of time to run.
 
@@ -1156,7 +1161,7 @@ save(Arena_array, file="Arena_array.Rda")
 load("Arena_array.Rda")
 ```
 
-### 1.2. Summarized data
+## Summarized data
 
 No need to run if `summary_tracking` and `summary_tracking_complete` are already loaded.
 
@@ -1642,13 +1647,15 @@ write_xlsx(summary_tracking_complete, "C:\\Users\\marc9\\Desktop\\Marc\\CREAF\\S
 
 ```
 
-## 2. Individual plots
+# Individual plots
 
 This part is dedicated to the visualisation of the movement of each individual inside the arena. There are also plots dedicated to showing the proportion of time taken by each snake to explore the different areas of the arena, the behaviour expressed and the speed of movement at each instant.
 
 For the visualization of these plots, you must choose the ID of the individual, if it is the first behavioural test that it did (N) or if it is one of the individuals that repeated the experiments to study the repeatability of the behaviour (Y), and the time in seconds that you want to analyse (maximum 3000 seconds).
 
-```{r individual plots}
+## Extraction functions
+
+```{r individual funcitons}
 #| warning: false
 ID <- 202308
 repeatability <- "N"
@@ -2164,6 +2171,12 @@ speed_plot <- function(ID, repeatability, time_limit) {
   
 }
 
+```
+
+## Individual movement plots
+
+```{r individual plots}
+#| warning: false
 data_visualization(ID, repeatability, time_limit)
 
 density_function(ID, repeatability, time_limit)
@@ -2177,21 +2190,1033 @@ graph_behaviour(ID, repeatability, time_limit)
 speed_plot(ID, repeatability, time_limit)
 ```
 
-## 3. Repeatability
+# Repeatability
 
 In this part we study whether head-out, body-out and visual exploration behaviour are maintained in the same range of values for the same individual, demonstrating a certain repeatability in the experiments and a certain animal personality. In addition, it also allows us to see if there is any trend between different experimental trials depending on the area the snake comes from.
 
-```{r repeatability}
+## 2023 snakes only
+
+In this section, we will look at whether there is a difference in repeatability in head-out, body-out and visual exploration behaviours between sexes, including and excluding pregnant females to see if there is an effect of these on repeatability. Repeatability between CORE and FRONT is explored in the next section, as this only includes snakes for which we know the sex and gestation stage.
+
+```{r repeatability 2023}
 #| warning: false
 
-# NOT DONE YET, AS I NEED SEX, SVL, AND CONDITION STATUS FOR 2024 INDIVIDUALS
+# Read data from 2023 snakes
+repeat_ID <- summary_tracking_complete$Snake_ID[duplicated(summary_tracking_complete$Snake_ID)]
+
+# Select ind with more than one tracking
+repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID, ]
+
+# Assign 1 to first trials
+repeat_ind$repeat_trial <- 1
+
+for (i in 1:nrow(repeat_ind)){
+  
+  # And if duplicated, assign 2
+  if(duplicated(repeat_ind$ID)[i] == T){
+    
+    repeat_ind$repeat_trial[i] <- 2
+    
+  } else {
+    
+  }
+  
+}
+
+# Select variables of interest
+repeat_ind <- repeat_ind[, c("Snake_ID", "Inv_situation", "Capture_day", "Time_head_out_sec_raw", "Time_body_out_sec_raw", "Repeatability", "Tracking", "Year_invasion", "Distance_Noahs", "SVL", "Real_Weight", "Condition", "Sex", "N_eggs", "repeat_trial")]
+
+# Order snakes by ID (first the first trial and second the repeatiblity test)
+repeat_ind <- repeat_ind[order(repeat_ind$Snake_ID), ]
+
 ```
 
-## 4. Survival analysis + Cox regression
+### Head-out
 
-Here we performed a survival analysis and a Cox regression to see if there are differences between snakes from the invasion front (*FRONT*) and those from the initially invaded zone (*CORE*) for the time it takes for the snakes to get their heads out of the initial refuge for the first time (*Head-out*) and to get completely out of the initial refuge for the first time (*Body-out*).
+#### Including gravid females
 
-### 4.1. No log-transformation
+```{r rep headout gravid 2023}
+#| warning: false
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial", "Sex")])
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4)]
+
+icc_data_M <- icc_data_M[, -c(4)]
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+# Females
+irr::icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+# Males
+irr::icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.688 | p < 0.05",
+                                            "M" = "Male\nICC = 0.721 | p < 0.01"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to head-out (s))") + 
+  ggtitle("Head-out with gravid females") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# Females
+anova_F <- aov(log(Time_head_out_sec_raw) ~ repeat_trial, data = icc_data_F)
+
+summary(anova_F)
+
+# Males
+anova_M <- aov(log(Time_head_out_sec_raw) ~ repeat_trial, data = icc_data_M)
+
+summary(anova_M)
+```
+
+#### Excluding gravid females
+
+```{r rep headout nogravid 2023}
+#| warning: false
+
+# Data frame without gravid females
+repeat_ind_no_gravid <- repeat_ind[repeat_ind$N_eggs == 0, ]
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial", "Sex", "N_eggs")])
+
+# Do not include gravid females
+icc_data <- icc_data[icc_data$N_eggs == 0, ]
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex and n_eggs columns
+icc_data_F <- icc_data_F[, -c(4, 5)]
+
+icc_data_M <- icc_data_M[, -c(4, 5)]
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+# Females
+irr::icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+# Males
+irr::icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.785 | p < 0.05",
+                                            "M" = "Male\nICC = 0.721 | p < 0.01"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to head-out (s))") + 
+  ggtitle("Head-out without gravid females") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# Females
+anova_F <- aov(log(Time_head_out_sec_raw) ~ repeat_trial, data = icc_data_F)
+
+summary(anova_F)
+
+# Males
+anova_M <- aov(log(Time_head_out_sec_raw) ~ repeat_trial, data = icc_data_M)
+
+summary(anova_M)
+
+```
+
+### Body-out
+
+#### Including gravid females
+
+```{r rep bodyout gravid 2023}
+#| warning: false
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial", "Sex")])
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4)]
+
+icc_data_M <- icc_data_M[, -c(4)]
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+# Females
+irr::icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+# Males
+irr::icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = repeat_ind, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.826 | p < 0.01",
+                                            "M" = "Male\nICC = 0.648 | p < 0.01"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to body-out (s))") + 
+  ggtitle("Body-out without gravid females") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# Females
+anova_F <- aov(log(Time_body_out_sec_raw) ~ repeat_trial, data = icc_data_F)
+
+summary(anova_F)
+
+# Males
+anova_M <- aov(log(Time_body_out_sec_raw) ~ repeat_trial, data = icc_data_M)
+
+summary(anova_M)
+```
+
+#### Excluding gravid females
+
+```{r rep bodyout nogravid 2023}
+#| warning: false
+
+# Data frame without gravid females
+repeat_ind_no_gravid <- repeat_ind[repeat_ind$N_eggs == 0, ]
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial", "Sex", "N_eggs")])
+
+# Do not include gravid females
+icc_data <- icc_data[icc_data$N_eggs == 0, ]
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex and n_eggs columns
+icc_data_F <- icc_data_F[, -c(4, 5)]
+
+icc_data_M <- icc_data_M[, -c(4, 5)]
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+# Females
+irr::icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+# Males
+irr::icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = repeat_ind_no_gravid, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.807 | p < 0.05",
+                                            "M" = "Male\nICC = 0.648 | p < 0.01"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to body-out (s))") + 
+  ggtitle("Body-out without gravid females") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# Females
+anova_F <- aov(log(Time_body_out_sec_raw) ~ repeat_trial, data = icc_data_F)
+
+summary(anova_F)
+
+# Males
+anova_M <- aov(log(Time_body_out_sec_raw) ~ repeat_trial, data = icc_data_M)
+
+summary(anova_M)
+```
+
+### Visual exploration
+
+#### Including gravid females
+
+```{r rep visexp gravid 2023}
+#| warning: false
+
+# Only those ind that got out of the initial refuge on time
+summary_tracking_complete_outside <- summary_tracking_complete[summary_tracking_complete$Time_body_out_sec_raw != time_limit, ]
+
+# select repeated individuals within the ones that got out
+repeat_ID_outside <- summary_tracking_complete_outside$Snake_ID[duplicated(summary_tracking_complete_outside$Snake_ID)]
+
+# select individuals
+repeat_ind_outside <- summary_tracking_complete_outside[summary_tracking_complete_outside$Snake_ID %in% repeat_ID_outside, ]
+
+# assign 1 to first trials
+repeat_ind_outside$repeat_trial <- 1
+
+for (i in 1:nrow(repeat_ind_outside)){
+  
+  # And if duplicated, assign 2
+  if(duplicated(repeat_ind_outside$ID)[i] == T){
+    
+    repeat_ind_outside$repeat_trial[i] <- 2
+    
+  } else {
+    
+  }
+  
+}
+
+# Order snakes by ID (first the first trial and second the repeatiblity test)
+repeat_ind_outside <- repeat_ind_outside[order(repeat_ind_outside$ID), ]
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind_outside[, c("Snake_ID", "Visual_exp", "repeat_trial", "Sex")])
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex column
+icc_data_F <- icc_data_F[, -c(4)]
+
+icc_data_M <- icc_data_M[, -c(4)]
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+# Females
+irr::icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+# Males
+irr::icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = repeat_ind_outside, aes(x = Repeatability, y = log1p(Visual_exp))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = -0.0178 | p = 0.491",
+                                            "M" = "Male\nICC = 0.313 | p = 0.192"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Visual exploration time (s))") + 
+  ggtitle("Visual exploration with gravid females") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# Females
+anova_F <- aov(log1p(Visual_exp) ~ repeat_trial, data = icc_data_F)
+
+summary(anova_F)
+
+# Males
+anova_M <- aov(log1p(Visual_exp) ~ repeat_trial, data = icc_data_M)
+
+summary(anova_M)
+```
+
+#### Excluding gravid females
+
+```{r rep visexp nogravid 2023}
+#| warning: false
+
+# Only those ind that got out of the initial refuge on time
+summary_tracking_complete_outside <- summary_tracking_complete[summary_tracking_complete$Time_body_out_sec_raw != time_limit, ]
+
+# select repeated individuals within the ones that got out
+repeat_ID_outside <- summary_tracking_complete_outside$Snake_ID[duplicated(summary_tracking_complete_outside$Snake_ID)]
+
+# select individuals
+repeat_ind_outside <- summary_tracking_complete_outside[summary_tracking_complete_outside$Snake_ID %in% repeat_ID_outside, ]
+
+# Data frame without gravid females
+repeat_ind_outside_no_gravid <- repeat_ind_outside[repeat_ind_outside$N_eggs == 0, ]
+
+# assign 1 to first trials
+repeat_ind_outside$repeat_trial <- 1
+
+for (i in 1:nrow(repeat_ind_outside)){
+  
+  # And if duplicated, assign 2
+  if(duplicated(repeat_ind_outside$ID)[i] == T){
+    
+    repeat_ind_outside$repeat_trial[i] <- 2
+    
+  } else {
+    
+  }
+  
+}
+
+# Order snakes by ID (first the first trial and second the repeatiblity test)
+repeat_ind_outside <- repeat_ind_outside[order(repeat_ind_outside$ID), ]
+
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(repeat_ind_outside[, c("Snake_ID", "Visual_exp", "repeat_trial", "Sex", "N_eggs")])
+
+# Do not include gravid females
+icc_data <- icc_data[icc_data$N_eggs == 0, ]
+
+# divide by sex
+icc_data_F <- icc_data[icc_data$Sex == "F", ]
+
+icc_data_M <- icc_data[icc_data$Sex == "M", ]
+
+# Delete sex and n_eggs columns
+icc_data_F <- icc_data_F[, -c(4, 5)]
+
+icc_data_M <- icc_data_M[, -c(4, 5)]
+
+# Put it in wide format
+icc_data_wide_F <- reshape(icc_data_F, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+icc_data_wide_M <- reshape(icc_data_M, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide_F <- icc_data_wide_F[, -1]
+
+icc_data_wide_M <- icc_data_wide_M[, -1]
+
+# Change column names
+colnames(icc_data_wide_F) <- c("First_trial", "Second_trial")
+
+colnames(icc_data_wide_M) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide_F <- log1p(icc_data_wide_F)
+
+icc_data_wide_M <- log1p(icc_data_wide_M)
+
+# Consistency (ICC)
+# Females
+irr::icc(icc_data_wide_F, model = "oneway", type = "consistency", unit = "single")
+
+# Males
+irr::icc(icc_data_wide_M, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = repeat_ind_outside_no_gravid, aes(x = Repeatability, y = log1p(Visual_exp))) +
+  theme_bw() + 
+  facet_wrap(~ Sex, labeller = labeller(Sex = 
+                                          c("F" = "Female\nICC = 0.402 | p = 0.244",
+                                            "M" = "Male\nICC = 0.313 | p = 0.192"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Visual exploration time (s))") + 
+  ggtitle("Visual exploration without gravid females") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# Females
+anova_F <- aov(log1p(Visual_exp) ~ repeat_trial, data = icc_data_F)
+
+summary(anova_F)
+
+# Males
+anova_M <- aov(log1p(Visual_exp) ~ repeat_trial, data = icc_data_M)
+
+summary(anova_M)
+
+```
+
+## 2023 + 2024 snakes
+
+In this section, for the moment we can only see if there are differences between CORE or FRONT, as at the moment we do not have the sex of the individuals or their pregnancy status.
+
+```{r repeatability 2023-2024}
+#| warning: false
+
+# detect duplicated ID from 2023 data
+repeat_ID <- summary_tracking_complete$Snake_ID[duplicated(summary_tracking_complete$Snake_ID)]
+
+# Select ind with more than one tracking
+repeat_ind <- summary_tracking_complete[summary_tracking_complete$Snake_ID %in% repeat_ID, ]
+
+# assign 1 to first trials
+repeat_ind$repeat_trial <- 1
+
+for (i in 1:nrow(repeat_ind)){
+  
+  # And if duplicated, assign 2
+  if(duplicated(repeat_ind$ID)[i] == T){
+    
+    repeat_ind$repeat_trial[i] <- 2
+    
+  } else {
+    
+  }
+  
+}
+
+# Order snakes by ID (first the first trial and second the repeatiblity test)
+repeat_ind <- repeat_ind[order(repeat_ind$ID), ]
+
+# Reduced data frame
+repeat_ind_2024_merged <- repeat_ind[, c("Snake_ID", "Inv_situation", "Capture_day", "Time_head_out_sec_raw", "Time_body_out_sec_raw", "Repeatability", "Tracking", "Year_invasion", "Distance_Noahs", "SVL", "Real_Weight", "Condition", "Sex", "N_eggs", "repeat_trial")]
+
+# 2024 data
+repeat_2024 <- Snake_data[year(Snake_data$Capture_day) == 2024, ]
+
+# assign 1 to first trials
+repeat_2024$repeat_trial <- 1
+
+for (i in 1:nrow(repeat_2024)){
+  
+  # And if duplicated, assign 2
+  if(duplicated(repeat_2024$Snake_ID)[i] == T){
+    
+    repeat_2024$repeat_trial[i] <- 2
+    
+  } else {
+    
+  }
+  
+}
+
+# Reduced data frame
+repeat_2024_merged_2 <- repeat_2024[, c("Snake_ID", "Inv_situation", "Capture_day", "Time_head_out_sec_raw", "Time_body_out_sec_raw", "Repeatability", "Tracking", "Year_invasion", "Distance_Noahs", "repeat_trial")]
+
+# Date format
+repeat_ind_2024_merged$Capture_day <- as_datetime(repeat_ind_2024_merged$Capture_day)
+
+repeat_ind_2024_merged$Capture_day <- as_datetime(repeat_ind_2024_merged$Capture_day)
+
+# Tiem to head-out / body-out as numeric 
+repeat_2024_merged_2$Time_head_out_sec_raw <- as.numeric(repeat_2024_merged_2$Time_head_out_sec_raw)
+
+repeat_2024_merged_2$Time_body_out_sec_raw <- as.numeric(repeat_2024_merged_2$Time_body_out_sec_raw)
+
+# If snake didn't get out, the number of seconds is 3000
+repeat_2024_merged_2 <- repeat_2024_merged_2 %>% mutate(Time_head_out_sec_raw = ifelse(is.na(Time_head_out_sec_raw), time_limit, Time_head_out_sec_raw))
+
+repeat_2024_merged_2 <- repeat_2024_merged_2 %>% mutate(Time_body_out_sec_raw = ifelse(is.na(Time_body_out_sec_raw), time_limit, Time_body_out_sec_raw))
+
+# Merge data frames
+merged_repeat_2024 <- bind_rows(repeat_ind_2024_merged, repeat_2024_merged_2)
+
+merged_repeat_2024 <- merged_repeat_2024[order(merged_repeat_2024$Snake_ID), ]
+
+# Check that all data over 3000s is correctly censored
+for(i in 1:nrow(merged_repeat_2024)){
+  
+  if(merged_repeat_2024$Time_head_out_sec_raw[i] > time_limit){
+    
+    merged_repeat_2024$Time_head_out_sec_raw[i] <- time_limit
+    
+    merged_repeat_2024$Time_body_out_sec_raw[i] <- time_limit
+    
+  } else { }
+  
+}
+
+```
+
+### Head-out
+
+```{r rep headout 2023-2024}
+#| warning: false
+
+# General ICC
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# Divide into CORE and FRONT
+merged_repeat_2024_core <- merged_repeat_2024[merged_repeat_2024$Inv_situation == "CORE", ]
+
+merged_repeat_2024_front <- merged_repeat_2024[merged_repeat_2024$Inv_situation == "FRONT", ]
+
+# CORE
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_core[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# FRONT
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_front[, c("Snake_ID", "Time_head_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = merged_repeat_2024, aes(x = Repeatability, y = log1p(Time_head_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Inv_situation, labeller = labeller(Inv_situation = 
+                                          c("CORE" = "CORE\nICC = 0.368 | p = 0.0623",
+                                            "FRONT" = "FRONT\nICC = 0.678 | p < 0.001"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to head-out (s))") + 
+  ggtitle("Head-out time (s) since start of the experiment (log)") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# CORE
+anova_core <- aov(log(Time_head_out_sec_raw) ~ Repeatability, data = merged_repeat_2024_core)
+
+summary(anova_core)
+
+# FRONT
+anova_front <- aov(log(Time_head_out_sec_raw) ~ Repeatability, data = merged_repeat_2024_front)
+
+summary(anova_front)
+```
+
+### Body-out
+
+```{r rep bodyout 2023-2024}
+#| warning: false
+
+# General ICC
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# Divide into CORE and FRONT
+merged_repeat_2024_core <- merged_repeat_2024[merged_repeat_2024$Inv_situation == "CORE", ]
+
+merged_repeat_2024_front <- merged_repeat_2024[merged_repeat_2024$Inv_situation == "FRONT", ]
+
+# CORE
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_core[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# FRONT
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_front[, c("Snake_ID", "Time_body_out_sec_raw", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = merged_repeat_2024, aes(x = Repeatability, y = log1p(Time_body_out_sec_raw))) +
+  theme_bw() + 
+  facet_wrap(~ Inv_situation, labeller = labeller(Inv_situation = 
+                                          c("CORE" = "CORE\nICC = 0.342 | p = 0.0777",
+                                            "FRONT" = "FRONT\nICC = 0.694 | p < 0.001"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Time to body-out (s))") + 
+  ggtitle("Body-out time (s) since start of the experiment (log)") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# CORE
+anova_core <- aov(log(Time_body_out_sec_raw) ~ Repeatability, data = merged_repeat_2024_core)
+
+summary(anova_core)
+
+# FRONT
+anova_front <- aov(log(Time_body_out_sec_raw) ~ Repeatability, data = merged_repeat_2024_front)
+
+summary(anova_front)
+```
+
+### Visual exploration
+
+```{r rep visexp 2023-2024}
+#| warning: false
+
+# Delete rows (individuals) that didn't do body-out under 3000 sec (only for visual exploration)
+merged_repeat_2024_outside <- subset(merged_repeat_2024, merged_repeat_2024[["Time_body_out_sec_raw"]] != time_limit)
+
+# Detect those individuals that in both their trials, exited the initial refuge
+duplicated_outside <- duplicated(merged_repeat_2024_outside[["Snake_ID"]]) | duplicated(merged_repeat_2024_outside[["Snake_ID"]], fromLast = TRUE)
+
+# Select only those individuals
+merged_repeat_2024_outside <- merged_repeat_2024_outside[duplicated_outside, ]
+
+# New variable: exploration time
+merged_repeat_2024_outside$Visual_exp <- merged_repeat_2024_outside$Time_body_out_sec_raw - merged_repeat_2024_outside$Time_head_out_sec_raw
+
+# General ICC
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_outside[, c("Snake_ID", "Visual_exp", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# Divide into CORE and FRONT
+merged_repeat_2024_core <- merged_repeat_2024_outside[merged_repeat_2024_outside$Inv_situation == "CORE", ]
+
+merged_repeat_2024_front <- merged_repeat_2024_outside[merged_repeat_2024_outside$Inv_situation == "FRONT", ]
+
+# CORE
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_core[, c("Snake_ID", "Visual_exp", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# FRONT
+# We extract the variable that we want to test repeatability
+icc_data <- as.data.frame(merged_repeat_2024_front[, c("Snake_ID", "Visual_exp", "repeat_trial")])
+
+# Put it in wide format
+icc_data_wide <- reshape(icc_data, idvar = "Snake_ID", timevar = "repeat_trial", direction = "wide")
+
+# Delete ID column
+icc_data_wide <- icc_data_wide[, -1]
+
+# Change column names
+colnames(icc_data_wide) <- c("First_trial", "Second_trial")
+
+# log transform varaibles
+icc_data_wide <- log1p(icc_data_wide)
+
+# Consistency (ICC)
+irr::icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+
+# Plot
+ggplot(data = merged_repeat_2024_outside, aes(x = Repeatability, y = log1p(Visual_exp))) +
+  theme_bw() + 
+  facet_wrap(~ Inv_situation, labeller = labeller(Inv_situation = 
+                                          c("CORE" = "CORE\nICC = 0.369 | p = 0.122",
+                                            "FRONT" = "FRONT\nICC = 0.291 | p = 0.17"))) + 
+  stat_summary(
+    geom = "errorbar", 
+    fun.data = mean_cl_boot, 
+    width = 0.1,
+    size = 0.8,  
+    col = "black",
+    position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_point(size = 3) +
+  stat_summary(fun.y = mean, position = position_nudge(x = c(-0.2, 0.2)), size = 1) +
+  stat_summary(aes(group = 1), fun.y = mean, geom = "line", size = 1.5, linetype = "solid", position = position_nudge(x = c(-0.2, 0.2))) +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black", size = 0.2,
+               position = position_nudge(x = c(-0.2, 0.2))) +
+  geom_line(aes(group = Snake_ID), size = 0.5, linetype = "dashed") + 
+  ylab("log(Visual exploration time (s))") + 
+  ggtitle("Visual exploration time (s) since start of the experiment (log)") +
+  theme(plot.caption = element_text(hjust = 0.5))
+
+# ANOVA differences in mean
+# CORE
+anova_core <- aov(log(Visual_exp) ~ Repeatability, data = merged_repeat_2024_core)
+
+summary(anova_core)
+
+# FRONT
+anova_front <- aov(log(Visual_exp) ~ Repeatability, data = merged_repeat_2024_front)
+
+summary(anova_front)
+```
+
+# Survival analysis + Cox regression
+
+Here we performed a survival analysis and a Cox regression to see if there are differences between snakes from the invasion front (*FRONT*) and those from the initially invaded zone (*CORE*) for the time it takes for the snakes to get their heads out of the initial refuge for the first time (*Head-out*) and to get completely out of the initial refuge for the first time (*Body-out*). This analysis doesn't include 2024 snakes.
+
+## No log-transformation
 
 ```{r survival analysis}
 #| warning: false
@@ -2258,7 +3283,7 @@ ggsurvplot(fit_body_out,
 coxph(Surv(Time_body_out_sec_raw, Body_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep)
 ```
 
-### 4.2. Log-transformation
+## Log-transformation
 
 ```{r log survival analysis}
 # Head-out
@@ -2294,13 +3319,15 @@ ggsurvplot(fit_body_out,
 coxph(Surv(log(Time_body_out_sec_raw), Body_out_01) ~ Inv_situation, data = summary_tracking_complete_no_rep)
 ```
 
-## 5. Censored data regressions
+# Censored data regressions
 
 In this section, we will use a method for estimating linear regressions with censored data. For the moment, I am including gravid females, but they can be removed.
 
-### 5.1. Head-out
+This part of the analysis has been done with all sexes at the same time, to determine the power of the analyses with censored data, and to see if the results of a normal analysis, one with censored data, and one without censored data are very different from each other. Ideally, it should be separated by gender, for example.
 
-#### 5.1.1. No log-transformation
+## Head-out
+
+### No log-transformation
 
 ```{r censored head out}
 #| warning: false
@@ -2446,7 +3473,7 @@ lineplot()
 
 ```
 
-#### 5.1.2. Log-transformation
+### Log-transformation
 
 ```{r log censored head out}
 #| warning: false
@@ -2585,9 +3612,9 @@ lineplot()
 
 ```
 
-### 5.2. Body-out
+## Body-out
 
-#### 5.2.1. No log-transformation
+### No log-transformation
 
 ```{r censored body out}
 #| warning: false
@@ -2726,7 +3753,7 @@ lineplot()
 
 ```
 
-#### 5.2.2. Log-transformation
+### Log-transformation
 
 ```{r log censored body out}
 #| warning: false
@@ -2864,9 +3891,9 @@ plot(summary_tracking_complete_no_rep$Condition, log(summary_tracking_complete_n
 lineplot()
 ```
 
-### 5.3. Visual exploration
+## Visual exploration
 
-#### 5.3.1. No log-transformation
+### No log-transformation
 
 ```{r censored visual}
 #| warning: false
@@ -3009,7 +4036,7 @@ lineplot()
 
 ```
 
-#### 5.3.2. Log-transformation
+### Log-transformation
 
 ```{r log censored visual}
 #| warning: false
@@ -3154,11 +4181,11 @@ plot(summary_tracking_complete_no_rep$Condition, (summary_tracking_complete_no_r
 lineplot()
 ```
 
-## 6. PERMANOVA + betadisper
+# PERMANOVA + betadisper
 
 This section analyses whether there are differences in the behaviour and use of the snake area. The analyses contain gravid females, but they can be removed if necessary.
 
-### 6.1. Correlation analysis
+## Correlation analysis
 
 First we are going to carry out a correlation test between variables to see if we can omit some of them when carrying out the analyses, as they could be highly correlated with each other.
 
@@ -3181,11 +4208,11 @@ corrplot(cor(variables_lm), method="color")
 
 Distance to Noah's garden and year of invasion are highly correlated with each other, as are SVL and condition, or relative humidity and temperature. For the analyses to come, we will use only one of each pair of these correlations to perform the analyses (distance to Noah's garden, SVL, and temperature), along with the sex variable.
 
-### 6.2. Behaviour analysis
+## Behaviour analysis
 
 In this section we are going to analyse whether for a given study time (15 min, for example), we observe differences in the type of behaviours expressed by the snakes, depending on different variables (PERMANOVA), and whether the variability of these behaviours is greater or lesser in certain groups (betadisper).
 
-#### 6.2.1. Stacked behaviour plot 
+### Stacked behaviour plot 
 
 ```{r stacked behaviour}
 #| warning: false
@@ -3329,7 +4356,7 @@ ggplot(stacked_behaviour_long, aes(x = Snake_ID, y = Percentage, fill = Behaviou
 
 ```
 
-#### 6.2.2. PERMANOVA
+### PERMANOVA
 
 ```{r PERMANOVA behaviour}
 #| warning: false
@@ -3382,7 +4409,7 @@ beh.permanova <- adonis2(stacked_behaviour_treatment_var ~ distance * SVL * Sex 
 beh.permanova
 ```
 
-#### 6.2.3 betadisper
+### betadisper
 
 ```{r betadisper behaviour}
 #| warning: false
@@ -3417,11 +4444,11 @@ boxplot(beh.dispersion, main = "Boxplot distance to centroids", xlab = "Groups")
 
 ```
 
-### 6.3. Area use analysis
+## Area use analysis
 
 In contrast to behaviour, here we want to know how much time did each snake spend doing head-out before and after body-out. We are going to analyse the use of the area only after body-out, because if we analysed area use after head-out, the initial refuge area would have bigger numbers. We want to know what areas did the snake visit after exiting the refuge, not taking into account the initial visual exploration that snakes performed during head-out before body-out.
 
-#### 6.3.1. Stacked area use plot
+### Stacked area use plot
 
 ```{r stacked area}
 #| warning: false
@@ -3581,7 +4608,7 @@ ggplot(stacked_area_long, aes(x = Snake_ID, y = Percentage, fill = Area)) +
 
 ```
 
-#### 6.3.2. PERMANOVA
+### PERMANOVA
 
 ```{r PERMANOVA area}
 #| warning: false
@@ -3631,7 +4658,7 @@ beh.area <- adonis2(stacked_area_treatment_var ~ distance * SVL * sex * temperat
 beh.area
 ```
 
-#### 6.3.3. betadisper
+### betadisper
 
 ```{r betadisper area}
 #| warning: false
@@ -3666,11 +4693,13 @@ boxplot(area.dispersion, main = "Boxplot distance to centroids", xlab = "Groups"
 
 ```
 
-## 7. Cumulative exploration tests
+# Cumulative exploration tests
 
 In this section we will analyse whether there are differences between groups (FRONT vs. CORE and M vs. F) in terms of the behaviour expressed during a certain exploration time (i. e. 15 min). The variables we will look at are the average speed of the individuals, the total distance travelled (in total, including vertical, and only while exploring), the total time exploring, the total time hidden, the number of visits to refuges, the average time the snake has been hidden in these refuges, and the average time the snake is exposed between visits to refuges.
 
-### 7.1. Data filtering and shared functions
+These results include pregnant females. It could be done without pregnant females as well. These results are also exclusive to a specific time range (15 min in this case), but the total time to be analysed could be modified.
+
+## Data filtering and shared functions
 
 ```{r cumulative data filtering + functions}
 #| warning: false
@@ -3885,9 +4914,9 @@ combine_plots <- function(variable) {
 }
 ```
 
-### 7.2. Paired t-tests + boxplots + linear regressions
+## Paired t-tests + boxplots + linear regressions
 
-#### 7.2.1. Average speed while exploring
+### Average speed while exploring
 
 ```{r avg speed}
 #| warning: false
@@ -3923,7 +4952,7 @@ combine_plots(variables)
 
 ```
 
-#### 7.2.2. Total distance traveled while exploring
+### Total distance traveled while exploring
 
 ```{r total distance}
 #| warning: false
@@ -3958,7 +4987,7 @@ summary(model_distance)
 combine_plots(variables)
 ```
 
-#### 7.2.3. Number of refuge visits
+### Number of refuge visits
 
 ```{r refuge visits}
 #| warning: false
@@ -3993,7 +5022,7 @@ summary(model_distance)
 combine_plots(variables)
 ```
 
-#### 7.2.4. Average time hiding 
+### Average time hiding 
 
 ```{r avg time hidden}
 #| warning: false
@@ -4028,7 +5057,7 @@ summary(model_distance)
 combine_plots(variables)
 ```
 
-#### 7.2.5. Average time between refuge visits
+### Average time between refuge visits
 
 ```{r avg time bw refuges}
 #| warning: false

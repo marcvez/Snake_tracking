@@ -3135,6 +3135,7 @@ icc_data_wide <- log1p(icc_data_wide)
 
 # Consistency (ICC)
 icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+?icc
 
 
 # Without sex and all these extra variables (nº of eggs, etc ) It looks like core snake take less time to explore, but on the second trial they take more than on the first one. Repeatability is almost significant. Front snakes are more shy, and their behaviour is consistent.
@@ -3507,7 +3508,9 @@ colnames(icc_data_wide) <- c("First_trial", "Second_trial")
 icc_data_wide <- log1p(icc_data_wide)
 
 # Consistency (ICC)
-icc(icc_data_wide, model = "oneway", type = "consistency", unit = "single")
+irr::icc(icc_data_wide, model = "twoway", type = "consistency", unit = "single")
+
+str(icc_data_wide)
 
 # An intraclass correlation coefficient, according to Koo & Li:
 # Less than 0.50: Poor reliability
